@@ -128,6 +128,10 @@ class NotificationApp(tk.Frame):
         except ValueError as exc:
             messagebox.showwarning("Invalid message", str(exc))
             return
+        except RuntimeError as exc:
+            self.write(f"{label} ERROR -> {exc}")
+            messagebox.showerror("Notification failed", str(exc))
+            return
 
         self.write(line)
         self.proof.configure(
