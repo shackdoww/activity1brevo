@@ -4,6 +4,14 @@ import os
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    # The app can still use normal OS environment variables if python-dotenv
+    # is not installed.
+    pass
+
 
 # ---------------- PRODUCT ----------------
 class Notification(ABC):
@@ -21,13 +29,15 @@ class EmailNotification(Notification):
     """Real email delivery through Brevo's transactional email API."""
 
     def send(self, message: str) -> str:
-        api_key = os.getenv("BREVO_API_KEY")
-        sender_email = os.getenv("BREVO_SENDER_EMAIL")
-        sender_name = os.getenv("BREVO_SENDER_NAME", "Activity 1 Notification App")
-        recipient_email = os.getenv("BREVO_RECIPIENT_EMAIL")
+        api_key = os.getenv("BREVO_API_KEY", "").strip()
+        sender_email = os.getenv("BREVO_SENDER_EMAIL", "").strip()
+        sender_name = os.getenv("BREVO_SENDER_NAME", "Activity 1 Notification App").strip()
+        recipient_email = os.getenv("BREVO_RECIPIENT_EMAIL", "").strip()
 
         if not api_key:
-            raise RuntimeError("BREVO_API_KEY is not configured.")
+            raise RuntimeError(
+                "BREVO_API_KEY is not configured. Put it in a .env file or set it as an OS environment variable."
+            )
         if not sender_email:
             raise RuntimeError("BREVO_SENDER_EMAIL is not configured.")
         if not recipient_email:
