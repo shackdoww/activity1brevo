@@ -1,4 +1,8 @@
 from abc import ABC, abstractmethod
+import json
+import os
+from urllib.error import HTTPError, URLError
+from urllib.request import Request, urlopen
 
 
 # ---------------- PRODUCT ----------------
@@ -14,13 +18,55 @@ class Notification(ABC):
 
 # ------------ CONCRETE PRODUCTS ------------
 class EmailNotification(Notification):
+    """Real email delivery through Brevo's transactional email API."""
+
     def send(self, message: str) -> str:
-        line = f"EMAIL -> {message}"
+        api_key = os.getenv("BREVO_API_KEY")
+        sender_email = os.getenv("BREVO_SENDER_EMAIL")
+        sender_name = os.getenv("BREVO_SENDER_NAME", "Activity 1 Notification App")
+        recipient_email = os.getenv("BREVO_RECIPIENT_EMAIL")
+
+        if not api_key:
+            raise RuntimeError("BREVO_API_KEY is not configured.")
+        if not sender_email:
+            raise RuntimeError("BREVO_SENDER_EMAIL is not configured.")
+        if not recipient_email:
+            raise RuntimeError("BREVO_RECIPIENT_EMAIL is not configured.")
+
+        payload = {
+            "sender": {"name": sender_name, "email": sender_email},
+            "to": [{"email": recipient_email}],
+            "subject": "CSPC 103 Notification",
+            "textContent": message,
+        }
+
+        request = Request(
+            "https://api.brevo.com/v3/smtp/email",
+            data=json.dumps(payload).encode("utf-8"),
+            headers={
+                "accept": "application/json",
+                "api-key": api_key,
+                "content-type": "application/json",
+            },
+            method="POST",
+        )
+
+        try:
+            with urlopen(request, timeout=30) as response:
+                result = json.loads(response.read().decode("utf-8"))
+        except HTTPError as exc:
+            details = exc.read().decode("utf-8", errors="replace")
+            raise RuntimeError(f"Brevo API error ({exc.code}): {details}") from exc
+        except URLError as exc:
+            raise RuntimeError(f"Could not connect to Brevo: {exc.reason}") from exc
+
+        message_id = result.get("messageId", "unknown")
+        line = f"EMAIL -> {message} | Brevo messageId: {message_id}"
         print(line)
         return line
 
     def channel_name(self) -> str:
-        return "Email"
+        return "Email (Brevo)"
 
 
 class SMSNotification(Notification):
@@ -99,6 +145,9 @@ SERVICES: dict[str, type[NotificationService]] = {
 
 if __name__ == "__main__":
     for label in SERVICES:
-        SERVICES[label]().notify(
-            f"Grades are now viewable in the portal. [{label}]"
-        )
+        try:
+            SERVICES[label]().notify(
+                f"Grades are now viewable in the portal. [{label}]"
+            )
+        except RuntimeError as exc:
+            print(f"{label} ERROR -> {exc}")
