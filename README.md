@@ -21,7 +21,7 @@ Tkinter is included with standard Python installations on Windows and macOS. On 
 
 The app uses Brevo's transactional email API endpoint `POST https://api.brevo.com/v3/smtp/email` and authenticates with the `api-key` header. Your sender must be configured/verified in Brevo before sending.
 
-1. Copy `.env.example` to `.env`.
+1. Copy `.env` to `.env`.
 2. Put your Brevo API key in `BREVO_API_KEY`.
 3. Put your verified Brevo sender address in `BREVO_SENDER_EMAIL`.
 4. Put the destination address in `BREVO_RECIPIENT_EMAIL`.
