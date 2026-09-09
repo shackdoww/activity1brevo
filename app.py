@@ -16,11 +16,15 @@ GRADES_FILE = BASE_DIR / "grades.txt"
 
 
 def parse_grades():
-    """Read grades.txt and return the student info and structured grade rows."""
+    """Read grades.txt and return student info and structured grade rows."""
     if not GRADES_FILE.exists():
         raise FileNotFoundError(f"grades.txt was not found at: {GRADES_FILE}")
 
-    lines = [line.strip() for line in GRADES_FILE.read_text(encoding="utf-8").splitlines() if line.strip()]
+    lines = [
+        line.strip()
+        for line in GRADES_FILE.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
     if not lines:
         raise ValueError("grades.txt is empty.")
 
@@ -52,6 +56,25 @@ def parse_grades():
     return student_info, grades
 
 
+def calculate_totals(grades):
+    """Return total units and weighted average for valid numeric grade rows."""
+    total_units = 0.0
+    weighted_points = 0.0
+
+    for _code, _subject, units, grade in grades:
+        try:
+            unit_value = float(units)
+            grade_value = float(grade)
+        except (TypeError, ValueError):
+            continue
+
+        total_units += unit_value
+        weighted_points += unit_value * grade_value
+
+    weighted_average = weighted_points / total_units if total_units else None
+    return total_units, weighted_average
+
+
 def load_grades() -> str:
     """Read grades.txt and convert it into the notification message."""
     student_info, grades = parse_grades()
@@ -59,7 +82,16 @@ def load_grades() -> str:
         f"{code} - {subject}: {grade} (Units: {units})"
         for code, subject, units, grade in grades
     ]
-    return "Student: " + student_info + "\n\nGrades:\n" + "\n".join(rows)
+    total_units, weighted_average = calculate_totals(grades)
+    average_text = f"{weighted_average:.2f}" if weighted_average is not None else "N/A"
+
+    return (
+        "Student: " + student_info
+        + "\n\nGrades:\n"
+        + "\n".join(rows)
+        + f"\n\nTotal Units: {total_units:g}"
+        + f"\nWeighted Average: {average_text}"
+    )
 
 
 class NotificationApp(tk.Frame):
@@ -107,12 +139,48 @@ class NotificationApp(tk.Frame):
             font=("Calibri", 11),
         ).grid(row=3, column=1, columnspan=2, sticky="w", padx=(8, 0), pady=(10, 0))
 
+        # Student information section: common details normally shown with a grade report.
+        info_frame = tk.LabelFrame(
+            self,
+            text="Student Information",
+            font=("Calibri", 10, "bold"),
+            bg="white",
+            fg=BAND,
+            padx=10,
+            pady=7,
+        )
+        info_frame.grid(row=4, column=0, columnspan=3, sticky="ew", pady=(12, 0))
+
+        self.student_name = tk.StringVar(value="--")
+        self.program_year = tk.StringVar(value="--")
+        self.academic_period = tk.StringVar(value="Not specified in grades.txt")
+
+        for column, (label, variable) in enumerate(
+            [
+                ("Name", self.student_name),
+                ("Program / Year", self.program_year),
+                ("Academic Period", self.academic_period),
+            ]
+        ):
+            tk.Label(
+                info_frame,
+                text=f"{label}:",
+                font=("Calibri", 9, "bold"),
+                bg="white",
+            ).grid(row=0, column=column * 2, sticky="w", padx=(0, 5))
+            tk.Label(
+                info_frame,
+                textvariable=variable,
+                font=("Calibri", 9),
+                bg="white",
+            ).grid(row=0, column=column * 2 + 1, sticky="w", padx=(0, 18))
+
         tk.Label(self, text="Grades from grades.txt:", font=("Calibri", 11), bg="white").grid(
-            row=4, column=0, sticky="nw", pady=(10, 0)
+            row=5, column=0, sticky="nw", pady=(10, 0)
         )
 
         table_frame = tk.Frame(self, bg="white")
-        table_frame.grid(row=4, column=1, columnspan=2, sticky="w", padx=(8, 0), pady=(10, 0))
+        table_frame.grid(row=5, column=1, columnspan=2, sticky="w", padx=(8, 0), pady=(10, 0))
 
         columns = ("name", "course_title", "units", "grade")
         self.grades_table = ttk.Treeview(
@@ -126,7 +194,7 @@ class NotificationApp(tk.Frame):
         self.grades_table.heading("units", text="Units")
         self.grades_table.heading("grade", text="Grade")
 
-        self.grades_table.column("name", width=105, anchor="w")
+        self.grades_table.column("name", width=155, anchor="w")
         self.grades_table.column("course_title", width=270, anchor="w")
         self.grades_table.column("units", width=65, anchor="center")
         self.grades_table.column("grade", width=65, anchor="center")
@@ -136,14 +204,26 @@ class NotificationApp(tk.Frame):
         self.grades_table.grid(row=0, column=0, sticky="nsew")
         scrollbar.grid(row=0, column=1, sticky="ns")
 
-        self.student_label = tk.Label(
-            self,
-            text="Student: --",
+        summary_frame = tk.Frame(self, bg=CREAM, padx=10, pady=7)
+        summary_frame.grid(row=6, column=1, columnspan=2, sticky="ew", padx=(8, 0), pady=(6, 0))
+
+        self.total_units_label = tk.Label(
+            summary_frame,
+            text="Total Units: --",
             font=("Calibri", 10, "bold"),
+            bg=CREAM,
             fg=BAND,
-            bg="white",
         )
-        self.student_label.grid(row=5, column=1, columnspan=2, sticky="w", padx=(8, 0), pady=(6, 0))
+        self.total_units_label.grid(row=0, column=0, sticky="w", padx=(0, 30))
+
+        self.weighted_average_label = tk.Label(
+            summary_frame,
+            text="Weighted Average: --",
+            font=("Calibri", 10, "bold"),
+            bg=CREAM,
+            fg=BAND,
+        )
+        self.weighted_average_label.grid(row=0, column=1, sticky="w")
 
         tk.Button(
             self,
@@ -153,7 +233,7 @@ class NotificationApp(tk.Frame):
             relief="flat",
             padx=10,
             pady=5,
-        ).grid(row=6, column=1, sticky="w", padx=(8, 0), pady=12)
+        ).grid(row=7, column=1, sticky="w", padx=(8, 0), pady=12)
 
         tk.Button(
             self,
@@ -168,7 +248,7 @@ class NotificationApp(tk.Frame):
             padx=14,
             pady=5,
             cursor="hand2",
-        ).grid(row=6, column=2, sticky="w", pady=12)
+        ).grid(row=7, column=2, sticky="w", pady=12)
 
         tk.Button(
             self,
@@ -178,7 +258,7 @@ class NotificationApp(tk.Frame):
             relief="flat",
             padx=10,
             pady=5,
-        ).grid(row=7, column=2, sticky="w", pady=(0, 12))
+        ).grid(row=8, column=2, sticky="w", pady=(0, 12))
 
         tk.Label(
             self,
@@ -186,7 +266,7 @@ class NotificationApp(tk.Frame):
             font=("Calibri", 11, "bold"),
             fg=BAND,
             bg="white",
-        ).grid(row=8, column=0, columnspan=3, sticky="w")
+        ).grid(row=9, column=0, columnspan=3, sticky="w")
 
         self.log = tk.Text(
             self,
@@ -201,7 +281,7 @@ class NotificationApp(tk.Frame):
             pady=6,
             state="disabled",
         )
-        self.log.grid(row=9, column=0, columnspan=3, sticky="w", pady=(4, 10))
+        self.log.grid(row=10, column=0, columnspan=3, sticky="w", pady=(4, 10))
 
         self.proof = tk.Label(
             self,
@@ -215,12 +295,13 @@ class NotificationApp(tk.Frame):
             pady=8,
             width=74,
         )
-        self.proof.grid(row=10, column=0, columnspan=3, sticky="w")
+        self.proof.grid(row=11, column=0, columnspan=3, sticky="w")
 
         try:
             self.populate_grades_table()
         except (FileNotFoundError, ValueError) as exc:
-            self.student_label.configure(text=f"Unable to load grades.txt: {exc}")
+            self.student_name.set("Unable to load grades.txt")
+            self.program_year.set(str(exc))
 
     def populate_grades_table(self) -> None:
         student_info, grades = parse_grades()
@@ -228,10 +309,22 @@ class NotificationApp(tk.Frame):
         for item in self.grades_table.get_children():
             self.grades_table.delete(item)
 
-        for code, subject, units, grade in grades:
-            self.grades_table.insert("", "end", values=(code, subject, units, grade))
+        # grades.txt currently stores the first line as "Name, Program/Year".
+        name = student_info
+        program_year = "Not specified"
+        if "," in student_info:
+            name, program_year = [part.strip() for part in student_info.split(",", 1)]
 
-        self.student_label.configure(text=f"Student: {student_info}")
+        for _code, subject, units, grade in grades:
+            self.grades_table.insert("", "end", values=(name, subject, units, grade))
+
+        total_units, weighted_average = calculate_totals(grades)
+        average_text = f"{weighted_average:.2f}" if weighted_average is not None else "N/A"
+
+        self.student_name.set(name)
+        self.program_year.set(program_year)
+        self.total_units_label.configure(text=f"Total Units: {total_units:g}")
+        self.weighted_average_label.configure(text=f"Weighted Average: {average_text}")
 
     def on_reload(self) -> None:
         try:
@@ -257,7 +350,6 @@ class NotificationApp(tk.Frame):
             import os
             os.environ["BREVO_RECIPIENT_EMAIL"] = recipient
 
-        # Send the same structured grades data represented in the table.
         message = load_grades()
 
         try:
