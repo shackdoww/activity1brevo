@@ -10,7 +10,6 @@ CREAM = "#FFF2CC"
 INK = "#1A1A2E"
 MINT = "#CCFFCC"
 
-
 BASE_DIR = Path(__file__).resolve().parent
 GRADES_FILE = BASE_DIR / "grades.txt"
 
@@ -37,8 +36,6 @@ def parse_grades():
         if len(parts) == 4:
             code, subject, units, grade = parts
         elif len(parts) == 3:
-            # Handles entries such as:
-            # CSCC 102, Fundamentals of Programming 3, 1.25
             code, subject_with_units, grade = parts
             tokens = subject_with_units.rsplit(maxsplit=1)
             if len(tokens) == 2 and tokens[1].replace(".", "", 1).isdigit():
@@ -47,7 +44,6 @@ def parse_grades():
                 subject = subject_with_units
                 units = "-"
         else:
-            # Keep malformed/unexpected lines visible rather than silently dropping them.
             grades.append((line, "", "", ""))
             continue
 
@@ -139,7 +135,6 @@ class NotificationApp(tk.Frame):
             font=("Calibri", 11),
         ).grid(row=3, column=1, columnspan=2, sticky="w", padx=(8, 0), pady=(10, 0))
 
-        # Student information section: common details normally shown with a grade report.
         info_frame = tk.LabelFrame(
             self,
             text="Student Information",
@@ -182,20 +177,20 @@ class NotificationApp(tk.Frame):
         table_frame = tk.Frame(self, bg="white")
         table_frame.grid(row=5, column=1, columnspan=2, sticky="w", padx=(8, 0), pady=(10, 0))
 
-        columns = ("name", "course_title", "units", "grade")
+        columns = ("course_code", "course_title", "units", "grade")
         self.grades_table = ttk.Treeview(
             table_frame,
             columns=columns,
             show="headings",
             height=9,
         )
-        self.grades_table.heading("name", text="Name")
+        self.grades_table.heading("course_code", text="Course Code")
         self.grades_table.heading("course_title", text="Course Title")
         self.grades_table.heading("units", text="Units")
         self.grades_table.heading("grade", text="Grade")
 
-        self.grades_table.column("name", width=155, anchor="w")
-        self.grades_table.column("course_title", width=270, anchor="w")
+        self.grades_table.column("course_code", width=125, anchor="w")
+        self.grades_table.column("course_title", width=300, anchor="w")
         self.grades_table.column("units", width=65, anchor="center")
         self.grades_table.column("grade", width=65, anchor="center")
 
@@ -309,14 +304,13 @@ class NotificationApp(tk.Frame):
         for item in self.grades_table.get_children():
             self.grades_table.delete(item)
 
-        # grades.txt currently stores the first line as "Name, Program/Year".
         name = student_info
         program_year = "Not specified"
         if "," in student_info:
             name, program_year = [part.strip() for part in student_info.split(",", 1)]
 
-        for _code, subject, units, grade in grades:
-            self.grades_table.insert("", "end", values=(name, subject, units, grade))
+        for code, subject, units, grade in grades:
+            self.grades_table.insert("", "end", values=(code, subject, units, grade))
 
         total_units, weighted_average = calculate_totals(grades)
         average_text = f"{weighted_average:.2f}" if weighted_average is not None else "N/A"
@@ -344,8 +338,6 @@ class NotificationApp(tk.Frame):
             messagebox.showwarning("Recipient required", "Enter an email recipient first.")
             return
 
-        # The Brevo email implementation reads BREVO_RECIPIENT_EMAIL at runtime.
-        # Set it temporarily so the GUI recipient field is used for this send.
         if label == "Email":
             import os
             os.environ["BREVO_RECIPIENT_EMAIL"] = recipient
