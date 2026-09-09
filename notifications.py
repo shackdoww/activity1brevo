@@ -2,6 +2,7 @@ from abc import ABC, abstractmethod
 import html
 import json
 import os
+import re
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
@@ -9,12 +10,9 @@ try:
     from dotenv import load_dotenv
     load_dotenv()
 except ImportError:
-    # The app can still use normal OS environment variables if python-dotenv
-    # is not installed.
     pass
 
 
-# ---------------- PRODUCT ----------------
 class Notification(ABC):
     @abstractmethod
     def send(self, message: str) -> str:
@@ -25,13 +23,12 @@ class Notification(ABC):
         """Return the human-readable channel name."""
 
 
-# ------------ CONCRETE PRODUCTS ------------
 class EmailNotification(Notification):
     """Real email delivery through Brevo's transactional email API."""
 
     @staticmethod
     def _grades_to_html(message: str) -> str:
-        """Turn a grades notification into a broadly compatible HTML email."""
+        """Turn a grades notification into a compatible HTML email."""
         if "\n\nGrades:\n" not in message:
             return (
                 "<html><body>"
@@ -41,26 +38,32 @@ class EmailNotification(Notification):
             )
 
         student_part, grades_part = message.split("\n\nGrades:\n", 1)
-        grade_lines = grades_part.splitlines()
-
+        rows = []
         total_units = ""
         weighted_average = ""
-        rows = []
 
-        for line in grade_lines:
-            if line.startswith("Total Units:"):
-                total_units = line.split(":", 1)[1].strip()
-            elif line.startswith("Weighted Average:"):
-                weighted_average = line.split(":", 1)[1].strip()
-            elif line.strip():
-                try:
-                    course_code, remainder = line.split(" - ", 1)
-                    subject, remainder = remainder.rsplit(": ", 1)
-                    grade, units_part = remainder.rsplit(" (Units: ", 1)
-                    units = units_part.rstrip(")")
-                    rows.append((course_code, subject, units, grade))
-                except ValueError:
-                    continue
+        # Accept the exact app format while allowing harmless spacing variations.
+        row_pattern = re.compile(
+            r"^\s*(.*?)\s*-\s*(.*?)\s*:\s*([^()]+?)\s*\(\s*Units\s*:\s*([^\)]+)\s*\)\s*$"
+        )
+
+        for line in grades_part.splitlines():
+            stripped = line.strip()
+            if not stripped:
+                continue
+
+            if stripped.lower().startswith("total units:"):
+                total_units = stripped.split(":", 1)[1].strip()
+                continue
+
+            if stripped.lower().startswith("weighted average:"):
+                weighted_average = stripped.split(":", 1)[1].strip()
+                continue
+
+            match = row_pattern.match(stripped)
+            if match:
+                code, subject, grade, units = match.groups()
+                rows.append((code.strip(), subject.strip(), units.strip(), grade.strip()))
 
         table_rows = "".join(
             "<tr>"
@@ -120,15 +123,11 @@ class EmailNotification(Notification):
         recipient_email = os.getenv("BREVO_RECIPIENT_EMAIL", "").strip()
 
         if not api_key:
-            raise RuntimeError(
-                "BREVO_API_KEY is not configured. Put it in a .env file or set it as an OS environment variable."
-            )
+            raise RuntimeError("BREVO_API_KEY is not configured. Put it in a .env file or set it as an OS environment variable.")
         if not sender_email:
             raise RuntimeError("BREVO_SENDER_EMAIL is not configured.")
         if not recipient_email:
-            raise RuntimeError(
-                "Email recipient is not configured. Enter a recipient in the application first."
-            )
+            raise RuntimeError("Email recipient is not configured. Enter a recipient in the application first.")
 
         payload = {
             "sender": {"name": sender_name, "email": sender_email},
@@ -197,13 +196,11 @@ class WhatsAppNotification(Notification):
         return "WhatsApp"
 
 
-# ---------------- CREATOR ----------------
 class NotificationService(ABC):
     @abstractmethod
     def create_notification(self) -> Notification:
         """THE FACTORY METHOD. Subclasses decide the concrete product."""
 
-    # Stable algorithm: do not change when a new channel is added.
     def notify(self, message: str) -> str:
         if not message.strip():
             raise ValueError("Message must not be empty.")
@@ -211,7 +208,6 @@ class NotificationService(ABC):
         return notification.send(message)
 
 
-# ------------ CONCRETE CREATORS ------------
 class EmailService(NotificationService):
     def create_notification(self) -> Notification:
         return EmailNotification()
@@ -232,7 +228,6 @@ class WhatsAppService(NotificationService):
         return WhatsAppNotification()
 
 
-# The one place where the concrete creator is selected.
 SERVICES: dict[str, type[NotificationService]] = {
     "Email": EmailService,
     "SMS": SMSService,
@@ -244,8 +239,6 @@ SERVICES: dict[str, type[NotificationService]] = {
 if __name__ == "__main__":
     for label in SERVICES:
         try:
-            SERVICES[label]().notify(
-                f"Grades are now viewable in the portal. [{label}]"
-            )
+            SERVICES[label]().notify(f"Grades are now viewable in the portal. [{label}]")
         except RuntimeError as exc:
             print(f"{label} ERROR -> {exc}")
