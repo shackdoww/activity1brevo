@@ -1,3 +1,4 @@
+import os
 import tkinter as tk
 from pathlib import Path
 from tkinter import messagebox, ttk
@@ -110,8 +111,23 @@ class NotificationApp(tk.Frame):
             bg="white",
         ).grid(row=1, column=0, columnspan=3, sticky="w", pady=(0, 12))
 
-        tk.Label(self, text="Channel:", font=("Calibri", 11), bg="white").grid(
+        tk.Label(self, text="Send:", font=("Calibri", 11), bg="white").grid(
             row=2, column=0, sticky="w"
+        )
+
+        self.content_mode = tk.StringVar(value="Grades")
+        self.content_mode_combo = ttk.Combobox(
+            self,
+            textvariable=self.content_mode,
+            values=("Grades", "Message Only"),
+            state="readonly",
+            width=18,
+        )
+        self.content_mode_combo.grid(row=2, column=1, sticky="w", padx=(8, 0))
+        self.content_mode_combo.bind("<<ComboboxSelected>>", self.on_content_mode_changed)
+
+        tk.Label(self, text="Channel:", font=("Calibri", 11), bg="white").grid(
+            row=3, column=0, sticky="w", pady=(10, 0)
         )
 
         self.channel = tk.StringVar(value=list(SERVICES)[0])
@@ -121,10 +137,10 @@ class NotificationApp(tk.Frame):
             values=list(SERVICES),
             state="readonly",
             width=18,
-        ).grid(row=2, column=1, sticky="w", padx=(8, 0))
+        ).grid(row=3, column=1, sticky="w", padx=(8, 0), pady=(10, 0))
 
         tk.Label(self, text="Email Recipient:", font=("Calibri", 11), bg="white").grid(
-            row=3, column=0, sticky="w", pady=(10, 0)
+            row=4, column=0, sticky="w", pady=(10, 0)
         )
 
         self.recipient = tk.StringVar()
@@ -133,7 +149,24 @@ class NotificationApp(tk.Frame):
             textvariable=self.recipient,
             width=52,
             font=("Calibri", 11),
-        ).grid(row=3, column=1, columnspan=2, sticky="w", padx=(8, 0), pady=(10, 0))
+        ).grid(row=4, column=1, columnspan=2, sticky="w", padx=(8, 0), pady=(10, 0))
+
+        self.message_label = tk.Label(
+            self,
+            text="Message:",
+            font=("Calibri", 11),
+            bg="white",
+        )
+        self.message_label.grid(row=5, column=0, sticky="nw", pady=(10, 0))
+
+        self.message_text = tk.Text(
+            self,
+            height=4,
+            width=58,
+            font=("Calibri", 11),
+            wrap="word",
+        )
+        self.message_text.grid(row=5, column=1, columnspan=2, sticky="w", padx=(8, 0), pady=(10, 0))
 
         info_frame = tk.LabelFrame(
             self,
@@ -144,7 +177,7 @@ class NotificationApp(tk.Frame):
             padx=10,
             pady=7,
         )
-        info_frame.grid(row=4, column=0, columnspan=3, sticky="ew", pady=(12, 0))
+        info_frame.grid(row=6, column=0, columnspan=3, sticky="ew", pady=(12, 0))
 
         self.student_name = tk.StringVar(value="--")
         self.program_year = tk.StringVar(value="--")
@@ -170,16 +203,20 @@ class NotificationApp(tk.Frame):
                 bg="white",
             ).grid(row=0, column=column * 2 + 1, sticky="w", padx=(0, 18))
 
-        tk.Label(self, text="Grades from grades.txt:", font=("Calibri", 11), bg="white").grid(
-            row=5, column=0, sticky="nw", pady=(10, 0)
+        self.grades_label = tk.Label(
+            self,
+            text="Grades from grades.txt:",
+            font=("Calibri", 11),
+            bg="white",
         )
+        self.grades_label.grid(row=7, column=0, sticky="nw", pady=(10, 0))
 
-        table_frame = tk.Frame(self, bg="white")
-        table_frame.grid(row=5, column=1, columnspan=2, sticky="w", padx=(8, 0), pady=(10, 0))
+        self.table_frame = tk.Frame(self, bg="white")
+        self.table_frame.grid(row=7, column=1, columnspan=2, sticky="w", padx=(8, 0), pady=(10, 0))
 
         columns = ("course_code", "course_title", "units", "grade")
         self.grades_table = ttk.Treeview(
-            table_frame,
+            self.table_frame,
             columns=columns,
             show="headings",
             height=9,
@@ -194,16 +231,16 @@ class NotificationApp(tk.Frame):
         self.grades_table.column("units", width=65, anchor="center")
         self.grades_table.column("grade", width=65, anchor="center")
 
-        scrollbar = ttk.Scrollbar(table_frame, orient="vertical", command=self.grades_table.yview)
+        scrollbar = ttk.Scrollbar(self.table_frame, orient="vertical", command=self.grades_table.yview)
         self.grades_table.configure(yscrollcommand=scrollbar.set)
         self.grades_table.grid(row=0, column=0, sticky="nsew")
         scrollbar.grid(row=0, column=1, sticky="ns")
 
-        summary_frame = tk.Frame(self, bg=CREAM, padx=10, pady=7)
-        summary_frame.grid(row=6, column=1, columnspan=2, sticky="ew", padx=(8, 0), pady=(6, 0))
+        self.summary_frame = tk.Frame(self, bg=CREAM, padx=10, pady=7)
+        self.summary_frame.grid(row=8, column=1, columnspan=2, sticky="ew", padx=(8, 0), pady=(6, 0))
 
         self.total_units_label = tk.Label(
-            summary_frame,
+            self.summary_frame,
             text="Total Units: --",
             font=("Calibri", 10, "bold"),
             bg=CREAM,
@@ -212,7 +249,7 @@ class NotificationApp(tk.Frame):
         self.total_units_label.grid(row=0, column=0, sticky="w", padx=(0, 30))
 
         self.weighted_average_label = tk.Label(
-            summary_frame,
+            self.summary_frame,
             text="Weighted Average: --",
             font=("Calibri", 10, "bold"),
             bg=CREAM,
@@ -228,7 +265,7 @@ class NotificationApp(tk.Frame):
             relief="flat",
             padx=10,
             pady=5,
-        ).grid(row=7, column=1, sticky="w", padx=(8, 0), pady=12)
+        ).grid(row=9, column=1, sticky="w", padx=(8, 0), pady=12)
 
         tk.Button(
             self,
@@ -243,7 +280,7 @@ class NotificationApp(tk.Frame):
             padx=14,
             pady=5,
             cursor="hand2",
-        ).grid(row=7, column=2, sticky="w", pady=12)
+        ).grid(row=9, column=2, sticky="w", pady=12)
 
         tk.Button(
             self,
@@ -253,7 +290,7 @@ class NotificationApp(tk.Frame):
             relief="flat",
             padx=10,
             pady=5,
-        ).grid(row=8, column=2, sticky="w", pady=(0, 12))
+        ).grid(row=10, column=2, sticky="w", pady=(0, 12))
 
         tk.Label(
             self,
@@ -261,7 +298,7 @@ class NotificationApp(tk.Frame):
             font=("Calibri", 11, "bold"),
             fg=BAND,
             bg="white",
-        ).grid(row=9, column=0, columnspan=3, sticky="w")
+        ).grid(row=11, column=0, columnspan=3, sticky="w")
 
         self.log = tk.Text(
             self,
@@ -276,7 +313,7 @@ class NotificationApp(tk.Frame):
             pady=6,
             state="disabled",
         )
-        self.log.grid(row=10, column=0, columnspan=3, sticky="w", pady=(4, 10))
+        self.log.grid(row=12, column=0, columnspan=3, sticky="w", pady=(4, 10))
 
         self.proof = tk.Label(
             self,
@@ -290,13 +327,15 @@ class NotificationApp(tk.Frame):
             pady=8,
             width=74,
         )
-        self.proof.grid(row=11, column=0, columnspan=3, sticky="w")
+        self.proof.grid(row=13, column=0, columnspan=3, sticky="w")
 
         try:
             self.populate_grades_table()
         except (FileNotFoundError, ValueError) as exc:
             self.student_name.set("Unable to load grades.txt")
             self.program_year.set(str(exc))
+
+        self.on_content_mode_changed()
 
     def populate_grades_table(self) -> None:
         student_info, grades = parse_grades()
@@ -320,6 +359,26 @@ class NotificationApp(tk.Frame):
         self.total_units_label.configure(text=f"Total Units: {total_units:g}")
         self.weighted_average_label.configure(text=f"Weighted Average: {average_text}")
 
+    def on_content_mode_changed(self, _event=None) -> None:
+        is_message_only = self.content_mode.get() == "Message Only"
+        state = "normal" if is_message_only else "disabled"
+
+        self.message_text.configure(state="normal")
+        self.message_label.configure(fg=INK if is_message_only else "#999999")
+
+        if is_message_only:
+            self.message_text.configure(state="normal")
+        else:
+            self.message_text.configure(state="disabled")
+
+        self.grades_label.configure(fg="#999999" if is_message_only else INK)
+        self.grades_table.configure(selectmode="none" if is_message_only else "browse")
+
+        if is_message_only:
+            self.summary_frame.grid_remove()
+        else:
+            self.summary_frame.grid()
+
     def on_reload(self) -> None:
         try:
             self.populate_grades_table()
@@ -339,10 +398,19 @@ class NotificationApp(tk.Frame):
             return
 
         if label == "Email":
-            import os
             os.environ["BREVO_RECIPIENT_EMAIL"] = recipient
 
-        message = load_grades()
+        if self.content_mode.get() == "Message Only":
+            message = self.message_text.get("1.0", "end").strip()
+            if not message:
+                messagebox.showwarning("Message required", "Enter a message first.")
+                return
+        else:
+            try:
+                message = load_grades()
+            except (FileNotFoundError, ValueError) as exc:
+                messagebox.showerror("Grades file error", str(exc))
+                return
 
         try:
             line = service.notify(message)
@@ -357,6 +425,7 @@ class NotificationApp(tk.Frame):
         self.write(line)
         self.proof.configure(
             text=(
+                f"Mode: {self.content_mode.get()} | "
                 f"Creator used: {type(service).__name__} | "
                 f"Product built: {type(service.create_notification()).__name__}\n"
                 "app.py names neither class - it only calls notify()."
