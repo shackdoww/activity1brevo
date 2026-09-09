@@ -93,7 +93,8 @@ def load_grades() -> str:
 
 class NotificationApp(tk.Frame):
     def __init__(self, master: tk.Misc) -> None:
-        super().__init__(master, padx=16, pady=14, bg="white")
+        super().__init__(master, padx=14, pady=10, bg="white")
+        self.columnconfigure(1, weight=1)
 
         tk.Label(
             self,
@@ -106,78 +107,107 @@ class NotificationApp(tk.Frame):
         tk.Label(
             self,
             text="Factory Method - the channel varies, notify() does not.",
-            font=("Calibri", 10, "italic"),
+            font=("Calibri", 9, "italic"),
             fg="#595959",
             bg="white",
-        ).grid(row=1, column=0, columnspan=3, sticky="w", pady=(0, 12))
+        ).grid(row=1, column=0, columnspan=3, sticky="w", pady=(0, 7))
 
-        tk.Label(self, text="Send:", font=("Calibri", 11), bg="white").grid(
-            row=2, column=0, sticky="w"
+        # Sending settings
+        settings = tk.LabelFrame(
+            self,
+            text="Notification Settings",
+            font=("Calibri", 10, "bold"),
+            bg="white",
+            fg=BAND,
+            padx=8,
+            pady=6,
+        )
+        settings.grid(row=2, column=0, columnspan=3, sticky="ew")
+        settings.columnconfigure(1, weight=1)
+
+        tk.Label(settings, text="Send:", font=("Calibri", 10, "bold"), bg="white").grid(
+            row=0, column=0, sticky="w", padx=(0, 8)
         )
 
         self.content_mode = tk.StringVar(value="Grades")
-        self.content_mode_combo = ttk.Combobox(
-            self,
-            textvariable=self.content_mode,
-            values=("Grades", "Message Only"),
-            state="readonly",
-            width=18,
-        )
-        self.content_mode_combo.grid(row=2, column=1, sticky="w", padx=(8, 0))
-        self.content_mode_combo.bind("<<ComboboxSelected>>", self.on_content_mode_changed)
+        mode_frame = tk.Frame(settings, bg="white")
+        mode_frame.grid(row=0, column=1, sticky="w")
 
-        tk.Label(self, text="Channel:", font=("Calibri", 11), bg="white").grid(
-            row=3, column=0, sticky="w", pady=(10, 0)
-        )
+        tk.Radiobutton(
+            mode_frame,
+            text="Grades",
+            variable=self.content_mode,
+            value="Grades",
+            command=self.on_content_mode_changed,
+            font=("Calibri", 10),
+            bg="white",
+            activebackground="white",
+        ).pack(side="left")
+        tk.Radiobutton(
+            mode_frame,
+            text="Message Only",
+            variable=self.content_mode,
+            value="Message Only",
+            command=self.on_content_mode_changed,
+            font=("Calibri", 10),
+            bg="white",
+            activebackground="white",
+        ).pack(side="left", padx=(12, 0))
 
+        tk.Label(settings, text="Channel:", font=("Calibri", 10, "bold"), bg="white").grid(
+            row=1, column=0, sticky="w", padx=(0, 8), pady=(5, 0)
+        )
         self.channel = tk.StringVar(value=list(SERVICES)[0])
         ttk.Combobox(
-            self,
+            settings,
             textvariable=self.channel,
             values=list(SERVICES),
             state="readonly",
             width=18,
-        ).grid(row=3, column=1, sticky="w", padx=(8, 0), pady=(10, 0))
+        ).grid(row=1, column=1, sticky="w", pady=(5, 0))
 
-        tk.Label(self, text="Email Recipient:", font=("Calibri", 11), bg="white").grid(
-            row=4, column=0, sticky="w", pady=(10, 0)
+        tk.Label(settings, text="Email Recipient:", font=("Calibri", 10, "bold"), bg="white").grid(
+            row=2, column=0, sticky="w", padx=(0, 8), pady=(5, 0)
         )
-
         self.recipient = tk.StringVar()
         tk.Entry(
-            self,
+            settings,
             textvariable=self.recipient,
             width=52,
-            font=("Calibri", 11),
-        ).grid(row=4, column=1, columnspan=2, sticky="w", padx=(8, 0), pady=(10, 0))
+            font=("Calibri", 10),
+        ).grid(row=2, column=1, sticky="w", pady=(5, 0))
 
+        # Message input
         self.message_label = tk.Label(
             self,
-            text="Message:",
-            font=("Calibri", 11),
+            text="Custom Message:",
+            font=("Calibri", 10, "bold"),
             bg="white",
         )
-        self.message_label.grid(row=5, column=0, sticky="nw", pady=(10, 0))
+        self.message_label.grid(row=3, column=0, sticky="nw", pady=(8, 0))
 
         self.message_text = tk.Text(
             self,
-            height=4,
-            width=58,
-            font=("Calibri", 11),
+            height=3,
+            width=64,
+            font=("Calibri", 10),
             wrap="word",
+            relief="solid",
+            borderwidth=1,
         )
-        self.message_text.grid(row=5, column=1, columnspan=2, sticky="w", padx=(8, 0), pady=(10, 0))
+        self.message_text.grid(row=3, column=1, columnspan=2, sticky="w", padx=(8, 0), pady=(8, 0))
 
+        # Student information
         info_frame = tk.LabelFrame(
             self,
             text="Student Information",
-            font=("Calibri", 10, "bold"),
+            font=("Calibri", 9, "bold"),
             bg="white",
             fg=BAND,
-            padx=10,
-            pady=7,
+            padx=8,
+            pady=5,
         )
-        info_frame.grid(row=6, column=0, columnspan=3, sticky="ew", pady=(12, 0))
+        info_frame.grid(row=4, column=0, columnspan=3, sticky="ew", pady=(8, 0))
 
         self.student_name = tk.StringVar(value="--")
         self.program_year = tk.StringVar(value="--")
@@ -193,141 +223,148 @@ class NotificationApp(tk.Frame):
             tk.Label(
                 info_frame,
                 text=f"{label}:",
-                font=("Calibri", 9, "bold"),
+                font=("Calibri", 8, "bold"),
                 bg="white",
-            ).grid(row=0, column=column * 2, sticky="w", padx=(0, 5))
+            ).grid(row=0, column=column * 2, sticky="w", padx=(0, 4))
             tk.Label(
                 info_frame,
                 textvariable=variable,
-                font=("Calibri", 9),
+                font=("Calibri", 8),
                 bg="white",
-            ).grid(row=0, column=column * 2 + 1, sticky="w", padx=(0, 18))
+            ).grid(row=0, column=column * 2 + 1, sticky="w", padx=(0, 15))
+
+        # Grades table
+        self.grades_section = tk.Frame(self, bg="white")
+        self.grades_section.grid(row=5, column=0, columnspan=3, sticky="ew", pady=(7, 0))
+        self.grades_section.columnconfigure(1, weight=1)
 
         self.grades_label = tk.Label(
-            self,
-            text="Grades from grades.txt:",
-            font=("Calibri", 11),
+            self.grades_section,
+            text="Grades:",
+            font=("Calibri", 10, "bold"),
             bg="white",
         )
-        self.grades_label.grid(row=7, column=0, sticky="nw", pady=(10, 0))
+        self.grades_label.grid(row=0, column=0, sticky="nw", padx=(0, 8))
 
-        self.table_frame = tk.Frame(self, bg="white")
-        self.table_frame.grid(row=7, column=1, columnspan=2, sticky="w", padx=(8, 0), pady=(10, 0))
+        self.table_frame = tk.Frame(self.grades_section, bg="white")
+        self.table_frame.grid(row=0, column=1, sticky="w")
 
         columns = ("course_code", "course_title", "units", "grade")
         self.grades_table = ttk.Treeview(
             self.table_frame,
             columns=columns,
             show="headings",
-            height=9,
+            height=6,
         )
         self.grades_table.heading("course_code", text="Course Code")
         self.grades_table.heading("course_title", text="Course Title")
         self.grades_table.heading("units", text="Units")
         self.grades_table.heading("grade", text="Grade")
-
-        self.grades_table.column("course_code", width=125, anchor="w")
-        self.grades_table.column("course_title", width=300, anchor="w")
-        self.grades_table.column("units", width=65, anchor="center")
-        self.grades_table.column("grade", width=65, anchor="center")
+        self.grades_table.column("course_code", width=105, anchor="w")
+        self.grades_table.column("course_title", width=260, anchor="w")
+        self.grades_table.column("units", width=55, anchor="center")
+        self.grades_table.column("grade", width=55, anchor="center")
 
         scrollbar = ttk.Scrollbar(self.table_frame, orient="vertical", command=self.grades_table.yview)
         self.grades_table.configure(yscrollcommand=scrollbar.set)
-        self.grades_table.grid(row=0, column=0, sticky="nsew")
+        self.grades_table.grid(row=0, column=0)
         scrollbar.grid(row=0, column=1, sticky="ns")
 
-        self.summary_frame = tk.Frame(self, bg=CREAM, padx=10, pady=7)
-        self.summary_frame.grid(row=8, column=1, columnspan=2, sticky="ew", padx=(8, 0), pady=(6, 0))
-
+        self.summary_frame = tk.Frame(self.grades_section, bg=CREAM, padx=8, pady=4)
+        self.summary_frame.grid(row=1, column=1, sticky="ew", pady=(4, 0))
         self.total_units_label = tk.Label(
             self.summary_frame,
             text="Total Units: --",
-            font=("Calibri", 10, "bold"),
+            font=("Calibri", 9, "bold"),
             bg=CREAM,
             fg=BAND,
         )
-        self.total_units_label.grid(row=0, column=0, sticky="w", padx=(0, 30))
-
+        self.total_units_label.pack(side="left", padx=(0, 25))
         self.weighted_average_label = tk.Label(
             self.summary_frame,
             text="Weighted Average: --",
-            font=("Calibri", 10, "bold"),
+            font=("Calibri", 9, "bold"),
             bg=CREAM,
             fg=BAND,
         )
-        self.weighted_average_label.grid(row=0, column=1, sticky="w")
+        self.weighted_average_label.pack(side="left")
+
+        # Buttons
+        button_frame = tk.Frame(self, bg="white")
+        button_frame.grid(row=6, column=0, columnspan=3, sticky="ew", pady=7)
 
         tk.Button(
-            self,
+            button_frame,
             text="Reload Grades",
             command=self.on_reload,
-            font=("Calibri", 10),
+            font=("Calibri", 9),
             relief="flat",
-            padx=10,
-            pady=5,
-        ).grid(row=9, column=1, sticky="w", padx=(8, 0), pady=12)
+            padx=9,
+            pady=3,
+        ).pack(side="left")
 
         tk.Button(
-            self,
+            button_frame,
             text="Send Notification",
             command=self.on_send,
-            font=("Calibri", 10, "bold"),
+            font=("Calibri", 9, "bold"),
             bg=NAVY,
             fg="white",
             activebackground=BAND,
             activeforeground="white",
             relief="flat",
-            padx=14,
-            pady=5,
+            padx=12,
+            pady=3,
             cursor="hand2",
-        ).grid(row=9, column=2, sticky="w", pady=12)
+        ).pack(side="right")
 
         tk.Button(
-            self,
+            button_frame,
             text="Clear Log",
             command=self.on_clear,
-            font=("Calibri", 10),
+            font=("Calibri", 9),
             relief="flat",
-            padx=10,
-            pady=5,
-        ).grid(row=10, column=2, sticky="w", pady=(0, 12))
+            padx=9,
+            pady=3,
+        ).pack(side="right", padx=(0, 8))
 
+        # Delivery log
         tk.Label(
             self,
             text="Delivery Log",
-            font=("Calibri", 11, "bold"),
+            font=("Calibri", 10, "bold"),
             fg=BAND,
             bg="white",
-        ).grid(row=11, column=0, columnspan=3, sticky="w")
+        ).grid(row=7, column=0, columnspan=3, sticky="w")
 
         self.log = tk.Text(
             self,
-            height=10,
+            height=5,
             width=76,
-            font=("Courier New", 10),
+            font=("Courier New", 8),
             bg=INK,
             fg=MINT,
             relief="solid",
             borderwidth=1,
-            padx=8,
-            pady=6,
+            padx=6,
+            pady=4,
             state="disabled",
         )
-        self.log.grid(row=12, column=0, columnspan=3, sticky="w", pady=(4, 10))
+        self.log.grid(row=8, column=0, columnspan=3, sticky="w", pady=(3, 6))
 
         self.proof = tk.Label(
             self,
             text="",
-            font=("Calibri", 10),
+            font=("Calibri", 8),
             bg=CREAM,
             fg="#333333",
             justify="left",
             anchor="w",
-            padx=10,
-            pady=8,
-            width=74,
+            padx=7,
+            pady=5,
+            width=80,
         )
-        self.proof.grid(row=13, column=0, columnspan=3, sticky="w")
+        self.proof.grid(row=9, column=0, columnspan=3, sticky="w")
 
         try:
             self.populate_grades_table()
@@ -359,25 +396,19 @@ class NotificationApp(tk.Frame):
         self.total_units_label.configure(text=f"Total Units: {total_units:g}")
         self.weighted_average_label.configure(text=f"Weighted Average: {average_text}")
 
-    def on_content_mode_changed(self, _event=None) -> None:
+    def on_content_mode_changed(self) -> None:
         is_message_only = self.content_mode.get() == "Message Only"
-        state = "normal" if is_message_only else "disabled"
-
-        self.message_text.configure(state="normal")
-        self.message_label.configure(fg=INK if is_message_only else "#999999")
 
         if is_message_only:
-            self.message_text.configure(state="normal")
+            self.message_label.configure(fg=INK)
+            self.message_text.configure(state="normal", bg="white", fg="black")
+            self.grades_label.configure(fg="#999999")
+            self.grades_section.grid_remove()
         else:
-            self.message_text.configure(state="disabled")
-
-        self.grades_label.configure(fg="#999999" if is_message_only else INK)
-        self.grades_table.configure(selectmode="none" if is_message_only else "browse")
-
-        if is_message_only:
-            self.summary_frame.grid_remove()
-        else:
-            self.summary_frame.grid()
+            self.message_label.configure(fg="#999999")
+            self.message_text.configure(state="disabled", bg="#F2F2F2", fg="#777777")
+            self.grades_label.configure(fg=INK)
+            self.grades_section.grid()
 
     def on_reload(self) -> None:
         try:
@@ -450,7 +481,8 @@ def main() -> None:
     root.title("CSPC 103 - Factory Method Notification Console")
     root.configure(bg="white")
     root.resizable(False, False)
-    NotificationApp(root).pack()
+    root.geometry("700x680")
+    NotificationApp(root).pack(fill="both", expand=True)
     root.mainloop()
 
 
