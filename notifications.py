@@ -41,7 +41,9 @@ class EmailNotification(Notification):
         if not sender_email:
             raise RuntimeError("BREVO_SENDER_EMAIL is not configured.")
         if not recipient_email:
-            raise RuntimeError("BREVO_RECIPIENT_EMAIL is not configured.")
+            raise RuntimeError(
+                "Email recipient is not configured. Enter a recipient in the application first."
+            )
 
         payload = {
             "sender": {"name": sender_name, "email": sender_email},
