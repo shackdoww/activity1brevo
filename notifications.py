@@ -31,11 +31,14 @@ class EmailNotification(Notification):
 
     @staticmethod
     def _grades_to_html(message: str) -> str:
-        """Turn the grades notification into a clean bordered HTML table."""
-        escaped_message = html.escape(message).replace("\n", "<br>")
-
+        """Turn a grades notification into a broadly compatible HTML email."""
         if "\n\nGrades:\n" not in message:
-            return f"<div style='font-family:Arial,sans-serif;line-height:1.5'>{escaped_message}</div>"
+            return (
+                "<html><body>"
+                "<div style=\"font-family:Arial,Helvetica,sans-serif;line-height:1.5;\">"
+                f"{html.escape(message).replace(chr(10), '<br>')}"
+                "</div></body></html>"
+            )
 
         student_part, grades_part = message.split("\n\nGrades:\n", 1)
         grade_lines = grades_part.splitlines()
@@ -61,43 +64,54 @@ class EmailNotification(Notification):
 
         table_rows = "".join(
             "<tr>"
-            f"<td style='border:1px solid #B7C9E2;padding:8px'>{html.escape(code)}</td>"
-            f"<td style='border:1px solid #B7C9E2;padding:8px'>{html.escape(subject)}</td>"
-            f"<td style='border:1px solid #B7C9E2;padding:8px;text-align:center'>{html.escape(units)}</td>"
-            f"<td style='border:1px solid #B7C9E2;padding:8px;text-align:center;font-weight:bold'>{html.escape(grade)}</td>"
+            f"<td style=\"border:1px solid #999999;padding:8px;\">{html.escape(code)}</td>"
+            f"<td style=\"border:1px solid #999999;padding:8px;\">{html.escape(subject)}</td>"
+            f"<td style=\"border:1px solid #999999;padding:8px;text-align:center;\">{html.escape(units)}</td>"
+            f"<td style=\"border:1px solid #999999;padding:8px;text-align:center;font-weight:bold;\">{html.escape(grade)}</td>"
             "</tr>"
             for code, subject, units, grade in rows
         )
 
-        return f"""
-        <div style='font-family:Arial,Helvetica,sans-serif;color:#1A1A2E;max-width:760px'>
-            <h2 style='color:#1F3864;margin-bottom:6px'>CSPC 103 Grade Notification</h2>
-            <p style='margin-top:0;margin-bottom:18px'>{html.escape(student_part)}</p>
+        if not table_rows:
+            table_rows = (
+                "<tr><td colspan=\"4\" style=\"border:1px solid #999999;padding:8px;\">"
+                "No grade rows found.</td></tr>"
+            )
 
-            <table style='border-collapse:collapse;width:100%;border:1px solid #8FAADC;font-size:14px'>
-                <thead>
-                    <tr style='background:#1F3864;color:white'>
-                        <th style='border:1px solid #8FAADC;padding:9px;text-align:left'>Course Code</th>
-                        <th style='border:1px solid #8FAADC;padding:9px;text-align:left'>Course Title</th>
-                        <th style='border:1px solid #8FAADC;padding:9px;text-align:center'>Units</th>
-                        <th style='border:1px solid #8FAADC;padding:9px;text-align:center'>Grade</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {table_rows}
-                </tbody>
-            </table>
+        return f"""<!DOCTYPE html>
+<html>
+<body style="margin:0;padding:20px;font-family:Arial,Helvetica,sans-serif;color:#1A1A2E;">
+  <div style="max-width:760px;margin:0 auto;">
+    <h2 style="margin:0 0 6px 0;color:#1F3864;">CSPC 103 Grade Notification</h2>
+    <p style="margin:0 0 18px 0;">{html.escape(student_part)}</p>
 
-            <table style='margin-top:16px;border-collapse:collapse;font-size:14px'>
-                <tr>
-                    <td style='border:1px solid #D6C68A;background:#FFF2CC;padding:8px 14px;font-weight:bold'>Total Units</td>
-                    <td style='border:1px solid #D6C68A;padding:8px 14px'>{html.escape(total_units)}</td>
-                    <td style='border:1px solid #D6C68A;background:#FFF2CC;padding:8px 14px;font-weight:bold'>Weighted Average</td>
-                    <td style='border:1px solid #D6C68A;padding:8px 14px'>{html.escape(weighted_average)}</td>
-                </tr>
-            </table>
-        </div>
-        """
+    <table border="1" cellpadding="8" cellspacing="0" width="100%" style="border-collapse:collapse;border:1px solid #999999;font-size:14px;">
+      <thead>
+        <tr>
+          <th bgcolor="#1F3864" style="border:1px solid #999999;color:#FFFFFF;text-align:left;padding:9px;">Course Code</th>
+          <th bgcolor="#1F3864" style="border:1px solid #999999;color:#FFFFFF;text-align:left;padding:9px;">Course Title</th>
+          <th bgcolor="#1F3864" style="border:1px solid #999999;color:#FFFFFF;text-align:center;padding:9px;">Units</th>
+          <th bgcolor="#1F3864" style="border:1px solid #999999;color:#FFFFFF;text-align:center;padding:9px;">Grade</th>
+        </tr>
+      </thead>
+      <tbody>
+        {table_rows}
+      </tbody>
+    </table>
+
+    <br>
+
+    <table border="1" cellpadding="8" cellspacing="0" style="border-collapse:collapse;border:1px solid #999999;font-size:14px;">
+      <tr>
+        <td bgcolor="#FFF2CC" style="border:1px solid #999999;font-weight:bold;">Total Units</td>
+        <td style="border:1px solid #999999;">{html.escape(total_units)}</td>
+        <td bgcolor="#FFF2CC" style="border:1px solid #999999;font-weight:bold;">Weighted Average</td>
+        <td style="border:1px solid #999999;font-weight:bold;">{html.escape(weighted_average)}</td>
+      </tr>
+    </table>
+  </div>
+</body>
+</html>"""
 
     def send(self, message: str) -> str:
         api_key = os.getenv("BREVO_API_KEY", "").strip()
