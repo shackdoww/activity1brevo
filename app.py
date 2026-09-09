@@ -15,8 +15,8 @@ BASE_DIR = Path(__file__).resolve().parent
 GRADES_FILE = BASE_DIR / "grades.txt"
 
 
-def load_grades() -> str:
-    """Read grades.txt and convert it into a readable notification message."""
+def parse_grades():
+    """Read grades.txt and return the student info and structured grade rows."""
     if not GRADES_FILE.exists():
         raise FileNotFoundError(f"grades.txt was not found at: {GRADES_FILE}")
 
@@ -44,12 +44,22 @@ def load_grades() -> str:
                 units = "-"
         else:
             # Keep malformed/unexpected lines visible rather than silently dropping them.
-            grades.append(line)
+            grades.append((line, "", "", ""))
             continue
 
-        grades.append(f"{code} - {subject}: {grade} (Units: {units})")
+        grades.append((code, subject, units, grade))
 
-    return "Student: " + student_info + "\n\nGrades:\n" + "\n".join(grades)
+    return student_info, grades
+
+
+def load_grades() -> str:
+    """Read grades.txt and convert it into the notification message."""
+    student_info, grades = parse_grades()
+    rows = [
+        f"{code} - {subject}: {grade} (Units: {units})"
+        for code, subject, units, grade in grades
+    ]
+    return "Student: " + student_info + "\n\nGrades:\n" + "\n".join(rows)
 
 
 class NotificationApp(tk.Frame):
@@ -101,19 +111,39 @@ class NotificationApp(tk.Frame):
             row=4, column=0, sticky="nw", pady=(10, 0)
         )
 
-        self.message = tk.Text(
-            self,
-            height=10,
-            width=60,
-            font=("Calibri", 10),
-            wrap="word",
-        )
-        self.message.grid(row=4, column=1, columnspan=2, sticky="w", padx=(8, 0), pady=(10, 0))
+        table_frame = tk.Frame(self, bg="white")
+        table_frame.grid(row=4, column=1, columnspan=2, sticky="w", padx=(8, 0), pady=(10, 0))
 
-        try:
-            self.message.insert("1.0", load_grades())
-        except (FileNotFoundError, ValueError) as exc:
-            self.message.insert("1.0", f"Unable to load grades.txt: {exc}")
+        columns = ("name", "course_title", "units", "grade")
+        self.grades_table = ttk.Treeview(
+            table_frame,
+            columns=columns,
+            show="headings",
+            height=9,
+        )
+        self.grades_table.heading("name", text="Name")
+        self.grades_table.heading("course_title", text="Course Title")
+        self.grades_table.heading("units", text="Units")
+        self.grades_table.heading("grade", text="Grade")
+
+        self.grades_table.column("name", width=105, anchor="w")
+        self.grades_table.column("course_title", width=270, anchor="w")
+        self.grades_table.column("units", width=65, anchor="center")
+        self.grades_table.column("grade", width=65, anchor="center")
+
+        scrollbar = ttk.Scrollbar(table_frame, orient="vertical", command=self.grades_table.yview)
+        self.grades_table.configure(yscrollcommand=scrollbar.set)
+        self.grades_table.grid(row=0, column=0, sticky="nsew")
+        scrollbar.grid(row=0, column=1, sticky="ns")
+
+        self.student_label = tk.Label(
+            self,
+            text="Student: --",
+            font=("Calibri", 10, "bold"),
+            fg=BAND,
+            bg="white",
+        )
+        self.student_label.grid(row=5, column=1, columnspan=2, sticky="w", padx=(8, 0), pady=(6, 0))
 
         tk.Button(
             self,
@@ -123,7 +153,7 @@ class NotificationApp(tk.Frame):
             relief="flat",
             padx=10,
             pady=5,
-        ).grid(row=5, column=1, sticky="w", padx=(8, 0), pady=12)
+        ).grid(row=6, column=1, sticky="w", padx=(8, 0), pady=12)
 
         tk.Button(
             self,
@@ -138,7 +168,7 @@ class NotificationApp(tk.Frame):
             padx=14,
             pady=5,
             cursor="hand2",
-        ).grid(row=5, column=2, sticky="w", pady=12)
+        ).grid(row=6, column=2, sticky="w", pady=12)
 
         tk.Button(
             self,
@@ -148,7 +178,7 @@ class NotificationApp(tk.Frame):
             relief="flat",
             padx=10,
             pady=5,
-        ).grid(row=6, column=2, sticky="w", pady=(0, 12))
+        ).grid(row=7, column=2, sticky="w", pady=(0, 12))
 
         tk.Label(
             self,
@@ -156,7 +186,7 @@ class NotificationApp(tk.Frame):
             font=("Calibri", 11, "bold"),
             fg=BAND,
             bg="white",
-        ).grid(row=7, column=0, columnspan=3, sticky="w")
+        ).grid(row=8, column=0, columnspan=3, sticky="w")
 
         self.log = tk.Text(
             self,
@@ -171,7 +201,7 @@ class NotificationApp(tk.Frame):
             pady=6,
             state="disabled",
         )
-        self.log.grid(row=8, column=0, columnspan=3, sticky="w", pady=(4, 10))
+        self.log.grid(row=9, column=0, columnspan=3, sticky="w", pady=(4, 10))
 
         self.proof = tk.Label(
             self,
@@ -185,17 +215,31 @@ class NotificationApp(tk.Frame):
             pady=8,
             width=74,
         )
-        self.proof.grid(row=9, column=0, columnspan=3, sticky="w")
+        self.proof.grid(row=10, column=0, columnspan=3, sticky="w")
+
+        try:
+            self.populate_grades_table()
+        except (FileNotFoundError, ValueError) as exc:
+            self.student_label.configure(text=f"Unable to load grades.txt: {exc}")
+
+    def populate_grades_table(self) -> None:
+        student_info, grades = parse_grades()
+
+        for item in self.grades_table.get_children():
+            self.grades_table.delete(item)
+
+        for code, subject, units, grade in grades:
+            self.grades_table.insert("", "end", values=(code, subject, units, grade))
+
+        self.student_label.configure(text=f"Student: {student_info}")
 
     def on_reload(self) -> None:
         try:
-            grades = load_grades()
+            self.populate_grades_table()
         except (FileNotFoundError, ValueError) as exc:
             messagebox.showerror("Grades file error", str(exc))
             return
 
-        self.message.delete("1.0", "end")
-        self.message.insert("1.0", grades)
         self.write("Loaded grades.txt successfully.")
 
     def on_send(self) -> None:
@@ -207,13 +251,14 @@ class NotificationApp(tk.Frame):
             messagebox.showwarning("Recipient required", "Enter an email recipient first.")
             return
 
-        # The Brevo email implementation reads BREVO_RECIPIENT_EMAIL from .env.
-        # Set it temporarily for this send so the GUI recipient field is used.
+        # The Brevo email implementation reads BREVO_RECIPIENT_EMAIL at runtime.
+        # Set it temporarily so the GUI recipient field is used for this send.
         if label == "Email":
             import os
             os.environ["BREVO_RECIPIENT_EMAIL"] = recipient
 
-        message = self.message.get("1.0", "end").strip()
+        # Send the same structured grades data represented in the table.
+        message = load_grades()
 
         try:
             line = service.notify(message)
