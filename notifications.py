@@ -26,9 +26,11 @@ class Notification(ABC):
 class EmailNotification(Notification):
     """Real email delivery through Brevo's transactional email API."""
 
+    def __init__(self, recipient: str):
+        self.recipient = recipient.strip()
+
     @staticmethod
     def _grades_to_html(message: str) -> str:
-        """Turn a grades notification into a compatible HTML email."""
         if "\n\nGrades:\n" not in message:
             return (
                 "<html><body>"
@@ -41,8 +43,6 @@ class EmailNotification(Notification):
         rows = []
         total_units = ""
         weighted_average = ""
-
-        # Accept the exact app format while allowing harmless spacing variations.
         row_pattern = re.compile(
             r"^\s*(.*?)\s*-\s*(.*?)\s*:\s*([^()]+?)\s*\(\s*Units\s*:\s*([^\)]+)\s*\)\s*$"
         )
@@ -51,15 +51,12 @@ class EmailNotification(Notification):
             stripped = line.strip()
             if not stripped:
                 continue
-
             if stripped.lower().startswith("total units:"):
                 total_units = stripped.split(":", 1)[1].strip()
                 continue
-
             if stripped.lower().startswith("weighted average:"):
                 weighted_average = stripped.split(":", 1)[1].strip()
                 continue
-
             match = row_pattern.match(stripped)
             if match:
                 code, subject, grade, units = match.groups()
@@ -87,7 +84,6 @@ class EmailNotification(Notification):
   <div style="max-width:760px;margin:0 auto;">
     <h2 style="margin:0 0 6px 0;color:#1F3864;">CSPC 103 Grade Notification</h2>
     <p style="margin:0 0 18px 0;">{html.escape(student_part)}</p>
-
     <table border="1" cellpadding="8" cellspacing="0" width="100%" style="border-collapse:collapse;border:1px solid #999999;font-size:14px;">
       <thead>
         <tr>
@@ -97,13 +93,9 @@ class EmailNotification(Notification):
           <th bgcolor="#1F3864" style="border:1px solid #999999;color:#FFFFFF;text-align:center;padding:9px;">Grade</th>
         </tr>
       </thead>
-      <tbody>
-        {table_rows}
-      </tbody>
+      <tbody>{table_rows}</tbody>
     </table>
-
     <br>
-
     <table border="1" cellpadding="8" cellspacing="0" style="border-collapse:collapse;border:1px solid #999999;font-size:14px;">
       <tr>
         <td bgcolor="#FFF2CC" style="border:1px solid #999999;font-weight:bold;">Total Units</td>
@@ -120,23 +112,21 @@ class EmailNotification(Notification):
         api_key = os.getenv("BREVO_API_KEY", "").strip()
         sender_email = os.getenv("BREVO_SENDER_EMAIL", "").strip()
         sender_name = os.getenv("BREVO_SENDER_NAME", "Activity 1 Notification App").strip()
-        recipient_email = os.getenv("BREVO_RECIPIENT_EMAIL", "").strip()
 
         if not api_key:
             raise RuntimeError("BREVO_API_KEY is not configured. Put it in a .env file or set it as an OS environment variable.")
         if not sender_email:
             raise RuntimeError("BREVO_SENDER_EMAIL is not configured.")
-        if not recipient_email:
-            raise RuntimeError("Email recipient is not configured. Enter a recipient in the application first.")
+        if not self.recipient:
+            raise RuntimeError("Email recipient is required. Enter it in the application.")
 
         payload = {
             "sender": {"name": sender_name, "email": sender_email},
-            "to": [{"email": recipient_email}],
+            "to": [{"email": self.recipient}],
             "subject": "CSPC 103 Notification",
             "textContent": message,
             "htmlContent": self._grades_to_html(message),
         }
-
         request = Request(
             "https://api.brevo.com/v3/smtp/email",
             data=json.dumps(payload).encode("utf-8"),
@@ -167,8 +157,11 @@ class EmailNotification(Notification):
 
 
 class SMSNotification(Notification):
+    def __init__(self, recipient: str):
+        self.recipient = recipient.strip()
+
     def send(self, message: str) -> str:
-        line = f"SMS -> {message}"
+        line = f"SMS -> {message} | Recipient: {self.recipient}"
         print(line)
         return line
 
@@ -177,8 +170,11 @@ class SMSNotification(Notification):
 
 
 class PushNotification(Notification):
+    def __init__(self, recipient: str):
+        self.recipient = recipient.strip()
+
     def send(self, message: str) -> str:
-        line = f"PUSH -> {message}"
+        line = f"PUSH -> {message} | Recipient: {self.recipient}"
         print(line)
         return line
 
@@ -187,8 +183,11 @@ class PushNotification(Notification):
 
 
 class WhatsAppNotification(Notification):
+    def __init__(self, recipient: str):
+        self.recipient = recipient.strip()
+
     def send(self, message: str) -> str:
-        line = f"WHATSAPP -> {message}"
+        line = f"WHATSAPP -> {message} | Recipient: {self.recipient}"
         print(line)
         return line
 
@@ -197,6 +196,12 @@ class WhatsAppNotification(Notification):
 
 
 class NotificationService(ABC):
+    def __init__(self):
+        self.recipient = ""
+
+    def set_recipient(self, recipient: str) -> None:
+        self.recipient = recipient.strip()
+
     @abstractmethod
     def create_notification(self) -> Notification:
         """THE FACTORY METHOD. Subclasses decide the concrete product."""
@@ -210,22 +215,22 @@ class NotificationService(ABC):
 
 class EmailService(NotificationService):
     def create_notification(self) -> Notification:
-        return EmailNotification()
+        return EmailNotification(self.recipient)
 
 
 class SMSService(NotificationService):
     def create_notification(self) -> Notification:
-        return SMSNotification()
+        return SMSNotification(self.recipient)
 
 
 class PushService(NotificationService):
     def create_notification(self) -> Notification:
-        return PushNotification()
+        return PushNotification(self.recipient)
 
 
 class WhatsAppService(NotificationService):
     def create_notification(self) -> Notification:
-        return WhatsAppNotification()
+        return WhatsAppNotification(self.recipient)
 
 
 SERVICES: dict[str, type[NotificationService]] = {
@@ -239,6 +244,7 @@ SERVICES: dict[str, type[NotificationService]] = {
 if __name__ == "__main__":
     for label in SERVICES:
         try:
-            SERVICES[label]().notify(f"Grades are now viewable in the portal. [{label}]")
+            service = SERVICES[label]()
+            service.notify(f"Grades are now viewable in the portal. [{label}]")
         except RuntimeError as exc:
             print(f"{label} ERROR -> {exc}")
