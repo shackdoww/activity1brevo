@@ -3,14 +3,26 @@ import html
 import json
 import os
 import re
+from pathlib import Path
 from urllib.error import HTTPError, URLError
-from urllib.request import Request, urlopen
+from urllib.request import HTTPBasicAuthHandler, HTTPPasswordMgrWithDefaultRealm, Request, build_opener, urlopen
 
 try:
     from dotenv import load_dotenv
     load_dotenv()
 except ImportError:
     pass
+
+try:
+    import firebase_admin
+    from firebase_admin import credentials, messaging
+except ImportError:
+    firebase_admin = None
+    credentials = None
+    messaging = None
+
+
+BASE_DIR = Path(__file__).resolve().parent
 
 
 class Notification(ABC):
@@ -157,29 +169,111 @@ class EmailNotification(Notification):
 
 
 class SMSNotification(Notification):
+    """Real SMS delivery through UniSMS."""
+
     def __init__(self, recipient: str):
         self.recipient = recipient.strip()
 
     def send(self, message: str) -> str:
-        line = f"SMS -> {message} | Recipient: {self.recipient}"
+        api_secret = os.getenv("UNISMS_API_SECRET", "").strip()
+        sender_id = os.getenv("UNISMS_SENDER_ID", "").strip()
+
+        if not api_secret:
+            raise RuntimeError("UNISMS_API_SECRET is not configured.")
+        if not sender_id:
+            raise RuntimeError("UNISMS_SENDER_ID is not configured.")
+        if not self.recipient:
+            raise RuntimeError("SMS recipient is required. Enter an international phone number such as +639171234567.")
+
+        payload = {
+            "recipient": self.recipient,
+            "content": message,
+            "sender_id": sender_id,
+        }
+        request = Request(
+            "https://unismsapi.com/api/sms",
+            data=json.dumps(payload).encode("utf-8"),
+            headers={
+                "accept": "application/json",
+                "content-type": "application/json",
+            },
+            method="POST",
+        )
+        auth = (api_secret + ":").encode("utf-8")
+        import base64
+        request.add_header("Authorization", "Basic " + base64.b64encode(auth).decode("ascii"))
+
+        try:
+            with urlopen(request, timeout=30) as response:
+                raw = response.read().decode("utf-8", errors="replace")
+                try:
+                    result = json.loads(raw)
+                except json.JSONDecodeError:
+                    result = {"response": raw}
+        except HTTPError as exc:
+            details = exc.read().decode("utf-8", errors="replace")
+            raise RuntimeError(f"UniSMS API error ({exc.code}): {details}") from exc
+        except URLError as exc:
+            raise RuntimeError(f"Could not connect to UniSMS: {exc.reason}") from exc
+
+        status = result.get("status", result.get("message", "accepted")) if isinstance(result, dict) else "accepted"
+        line = f"SMS -> {message} | UniSMS: {status} | Recipient: {self.recipient}"
         print(line)
         return line
 
     def channel_name(self) -> str:
-        return "SMS"
+        return "SMS (UniSMS)"
 
 
 class PushNotification(Notification):
+    """Real push notification delivery through Firebase Cloud Messaging."""
+
     def __init__(self, recipient: str):
         self.recipient = recipient.strip()
 
+    @staticmethod
+    def _firebase_app():
+        if firebase_admin is None:
+            raise RuntimeError("firebase-admin is not installed. Run: pip install -r requirements.txt")
+
+        if firebase_admin._apps:
+            return firebase_admin.get_app()
+
+        credential_setting = os.getenv("GOOGLE_APPLICATION_CREDENTIALS", "").strip()
+        if credential_setting:
+            credential_path = Path(credential_setting)
+            if not credential_path.is_absolute():
+                credential_path = BASE_DIR / credential_path
+            if not credential_path.exists():
+                raise RuntimeError(f"Firebase service account file was not found: {credential_path}")
+            return firebase_admin.initialize_app(credentials.Certificate(str(credential_path)))
+
+        return firebase_admin.initialize_app()
+
     def send(self, message: str) -> str:
-        line = f"PUSH -> {message} | Recipient: {self.recipient}"
+        if not self.recipient:
+            raise RuntimeError("Push recipient is required. Enter a Firebase Cloud Messaging device registration token.")
+
+        self._firebase_app()
+        fcm_message = messaging.Message(
+            notification=messaging.Notification(
+                title="NDMU Notification",
+                body=message,
+            ),
+            token=self.recipient,
+        )
+
+        try:
+            message_id = messaging.send(fcm_message)
+        except Exception as exc:
+            raise RuntimeError(f"Firebase Cloud Messaging error: {exc}") from exc
+
+        line = f"PUSH -> {message} | FCM messageId: {message_id} | Recipient: {self.recipient}"
         print(line)
         return line
 
     def channel_name(self) -> str:
-        return "Push"
+        return "Push (Firebase)"
 
 
 class WhatsAppNotification(Notification):
