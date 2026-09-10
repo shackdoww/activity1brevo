@@ -1,4 +1,5 @@
 .env
 __pycache__/
 *.pyc
-notification-app-b99b9-firebase-adminsdk-fbsvc-6d174d12ee.json
+firebase-service-account.json
+*-firebase-adminsdk-*.json
