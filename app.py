@@ -20,9 +20,7 @@ TEXT = "#182033"
 MUTED = "#6F7A8F"
 BORDER = "#E3E7EF"
 SOFT = "#EEF2FF"
-SUCCESS = "#16865B"
 DANGER = "#C94343"
-
 FONT = "Segoe UI"
 
 
@@ -77,7 +75,7 @@ def load_grades() -> str:
     rows = [f"{code} - {subject}: {grade} (Units: {units})" for code, subject, units, grade in grades]
     total_units, weighted_average = calculate_totals(grades)
     average_text = f"{weighted_average:.2f}" if weighted_average is not None else "N/A"
-    return "Student: " + student_info + "\n\nGrades:\n" + "\n".join(rows) + f"\n\nTotal Units: {total_units:g}" + f"\nWeighted Average: {average_text}"
+    return "Student: " + student_info + "\n\nGrades:\n" + "\n".join(rows) + f"\n\nTotal Units: {total_units:g}\nWeighted Average: {average_text}"
 
 
 def save_students(students):
@@ -100,7 +98,6 @@ def load_students():
             }]
         save_students(students)
         return students
-
     try:
         data = json.loads(STUDENTS_FILE.read_text(encoding="utf-8"))
     except json.JSONDecodeError as exc:
@@ -119,12 +116,15 @@ class ModernDialog(tk.Toplevel):
         self.transient(parent)
         self.grab_set()
         self.columnconfigure(0, weight=1)
+
         header = tk.Frame(self, bg=CARD, padx=24, pady=20)
         header.grid(row=0, column=0, sticky="ew")
         tk.Label(header, text=title, font=(FONT, 16, "bold"), fg=TEXT, bg=CARD).pack(anchor="w")
         tk.Label(header, text=subtitle, font=(FONT, 9), fg=MUTED, bg=CARD).pack(anchor="w", pady=(4, 0))
+
         self.body = tk.Frame(self, bg=BG, padx=24, pady=20)
         self.body.grid(row=1, column=0, sticky="ew")
+
         self.buttons = tk.Frame(self, bg=CARD, padx=24, pady=16)
         self.buttons.grid(row=2, column=0, sticky="ew")
         tk.Button(self.buttons, text="Cancel", command=self.destroy, font=(FONT, 9, "bold"), bg="#F0F2F6", fg=TEXT, activebackground="#E5E8EE", relief="flat", bd=0, padx=18, pady=9, cursor="hand2").pack(side="right")
@@ -174,11 +174,12 @@ class GradeDialog(ModernDialog):
         self.subject_var = tk.StringVar(value=values[1])
         self.units_var = tk.StringVar(value=values[2])
         self.grade_var = tk.StringVar(value=values[3])
-        self.field(0, "Course Code", self.code_var)
+        self.code_entry = self.field(0, "Course Code", self.code_var)
         self.field(2, "Course Title", self.subject_var)
         self.field(4, "Units", self.units_var)
         self.field(6, "Grade", self.grade_var)
         self.save_button.configure(command=self.validate_and_save)
+        self.after(50, self.code_entry.focus_set)
 
     def validate_and_save(self):
         code = self.code_var.get().strip()
@@ -211,7 +212,6 @@ class NotificationApp(tk.Frame):
         self.students = []
         self.selected_student_index = None
         self.grades = []
-        self.active_nav = None
         self.setup_styles()
         self.build_ui()
         self.load_students_into_table()
@@ -221,8 +221,8 @@ class NotificationApp(tk.Frame):
     def setup_styles(self):
         style = ttk.Style()
         style.theme_use("clam")
-        style.configure("Modern.Treeview", background=CARD, fieldbackground=CARD, foreground=TEXT, rowheight=38, font=(FONT, 9), borderwidth=0)
-        style.configure("Modern.Treeview.Heading", background="#F7F8FB", foreground=MUTED, font=(FONT, 8, "bold"), relief="flat", borderwidth=0, padding=(10, 10))
+        style.configure("Modern.Treeview", background=CARD, fieldbackground=CARD, foreground=TEXT, rowheight=36, font=(FONT, 9), borderwidth=0)
+        style.configure("Modern.Treeview.Heading", background="#F7F8FB", foreground=MUTED, font=(FONT, 8, "bold"), relief="flat", borderwidth=0, padding=(10, 9))
         style.map("Modern.Treeview", background=[("selected", SOFT)], foreground=[("selected", PRIMARY)])
         style.configure("Modern.Vertical.TScrollbar", troughcolor="#F7F8FB", background="#CBD2DE", borderwidth=0, arrowsize=10)
         style.configure("Modern.TCombobox", fieldbackground=CARD, background=CARD, foreground=TEXT, bordercolor=BORDER, arrowcolor=MUTED, padding=7)
@@ -246,8 +246,7 @@ class NotificationApp(tk.Frame):
 
         brand = tk.Frame(sidebar, bg=SIDEBAR, padx=22, pady=24)
         brand.pack(fill="x")
-        logo = tk.Label(brand, text="N", font=(FONT, 18, "bold"), fg="white", bg=PRIMARY, width=2, pady=4)
-        logo.pack(side="left")
+        tk.Label(brand, text="N", font=(FONT, 18, "bold"), fg="white", bg=PRIMARY, width=2, pady=4).pack(side="left")
         brand_text = tk.Frame(brand, bg=SIDEBAR)
         brand_text.pack(side="left", padx=(10, 0))
         tk.Label(brand_text, text="NDMU", font=(FONT, 13, "bold"), fg="white", bg=SIDEBAR).pack(anchor="w")
@@ -268,22 +267,21 @@ class NotificationApp(tk.Frame):
         main.grid(row=0, column=1, sticky="nsew")
         main.columnconfigure(0, weight=1)
         main.rowconfigure(2, weight=1)
-        main.rowconfigure(3, weight=0)
+        main.rowconfigure(3, weight=0, minsize=190)
         self.main = main
 
         header = tk.Frame(main, bg=BG)
-        header.grid(row=0, column=0, sticky="ew", pady=(0, 22))
+        header.grid(row=0, column=0, sticky="ew", pady=(0, 18))
         self.page_title = tk.Label(header, text="Students", font=(FONT, 24, "bold"), fg=TEXT, bg=BG)
         self.page_title.pack(side="left")
         self.page_subtitle = tk.Label(header, text="Manage students, academic records, and notifications", font=(FONT, 9), fg=MUTED, bg=BG)
         self.page_subtitle.pack(side="left", padx=(14, 0), pady=(10, 0))
-
         actions = tk.Frame(header, bg=BG)
         actions.pack(side="right")
         self.button(actions, "+  Add Student", self.on_add_student, primary=True).pack(side="left")
 
         stats = tk.Frame(main, bg=BG)
-        stats.grid(row=1, column=0, sticky="ew", pady=(0, 18))
+        stats.grid(row=1, column=0, sticky="ew", pady=(0, 16))
         for i in range(3):
             stats.columnconfigure(i, weight=1)
         self.stat_card(stats, 0, "STUDENTS", "0", "Registered records", "student_count")
@@ -296,7 +294,6 @@ class NotificationApp(tk.Frame):
         content.columnconfigure(1, weight=5)
         content.rowconfigure(0, weight=1)
         self.content = content
-
         self.build_students_card(content)
         self.build_details_card(content)
         self.build_notification_card(main)
@@ -311,8 +308,7 @@ class NotificationApp(tk.Frame):
         return frame
 
     def set_active_nav(self, active):
-        pairs = [(self.students_nav, active == "students"), (self.notifications_nav, active == "notifications")]
-        for frame, selected in pairs:
+        for frame, selected in ((self.students_nav, active == "students"), (self.notifications_nav, active == "notifications")):
             frame.configure(bg=PRIMARY if selected else SIDEBAR)
             label = frame.winfo_children()[0]
             label.configure(bg=PRIMARY if selected else SIDEBAR, fg="white" if selected else SIDEBAR_TEXT, font=(FONT, 9, "bold" if selected else "normal"))
@@ -335,16 +331,16 @@ class NotificationApp(tk.Frame):
         self.master.after(500, lambda: self.notification_card.configure(highlightbackground=BORDER, highlightthickness=1))
 
     def stat_card(self, parent, column, label, value, subtitle, attr):
-        frame = self.card(parent, 16, 13)
+        frame = self.card(parent, 16, 12)
         frame.grid(row=0, column=column, sticky="ew", padx=(0, 10 if column < 2 else 0))
         tk.Label(frame, text=label, font=(FONT, 8, "bold"), fg=MUTED, bg=CARD).pack(anchor="w")
         variable = tk.StringVar(value=value)
         setattr(self, attr, variable)
-        tk.Label(frame, textvariable=variable, font=(FONT, 18, "bold"), fg=TEXT, bg=CARD).pack(anchor="w", pady=(4, 0))
+        tk.Label(frame, textvariable=variable, font=(FONT, 18, "bold"), fg=TEXT, bg=CARD).pack(anchor="w", pady=(3, 0))
         tk.Label(frame, text=subtitle, font=(FONT, 8), fg=MUTED, bg=CARD).pack(anchor="w", pady=(2, 0))
 
     def build_students_card(self, parent):
-        card = self.card(parent)
+        card = self.card(parent, 18, 15)
         card.grid(row=0, column=0, sticky="nsew", padx=(0, 9))
         card.rowconfigure(2, weight=1)
         card.columnconfigure(0, weight=1)
@@ -352,7 +348,7 @@ class NotificationApp(tk.Frame):
         title_row.grid(row=0, column=0, sticky="ew")
         tk.Label(title_row, text="Student Directory", font=(FONT, 12, "bold"), fg=TEXT, bg=CARD).pack(side="left")
         self.student_search = tk.StringVar()
-        search = tk.Entry(title_row, textvariable=self.student_search, font=(FONT, 8), bg="#F7F8FB", fg=TEXT, relief="flat", bd=0, highlightthickness=1, highlightbackground=BORDER, highlightcolor=PRIMARY, width=18)
+        search = tk.Entry(title_row, textvariable=self.student_search, font=(FONT, 8), bg="#F7F8FB", fg=TEXT, relief="flat", bd=0, highlightthickness=1, highlightbackground=BORDER, highlightcolor=PRIMARY, width=20)
         search.pack(side="right", ipady=6)
         self.student_search.trace_add("write", lambda *_args: self.refresh_student_rows())
         tk.Label(card, text="Search students", font=(FONT, 7), fg=MUTED, bg=CARD).grid(row=1, column=0, sticky="e", pady=(2, 8))
@@ -361,13 +357,13 @@ class NotificationApp(tk.Frame):
         table_frame.grid(row=2, column=0, sticky="nsew")
         table_frame.rowconfigure(0, weight=1)
         table_frame.columnconfigure(0, weight=1)
-        self.students_table = ttk.Treeview(table_frame, columns=("name", "program", "period"), show="headings", style="Modern.Treeview", selectmode="browse")
+        self.students_table = ttk.Treeview(table_frame, columns=("name", "program", "period"), show="headings", style="Modern.Treeview", selectmode="browse", height=8)
         self.students_table.heading("name", text="STUDENT")
         self.students_table.heading("program", text="PROGRAM")
         self.students_table.heading("period", text="PERIOD")
-        self.students_table.column("name", width=190, anchor="w")
-        self.students_table.column("program", width=125, anchor="w")
-        self.students_table.column("period", width=105, anchor="w")
+        self.students_table.column("name", width=230, anchor="w", stretch=True)
+        self.students_table.column("program", width=125, anchor="w", stretch=False)
+        self.students_table.column("period", width=105, anchor="w", stretch=False)
         scroll = ttk.Scrollbar(table_frame, orient="vertical", command=self.students_table.yview, style="Modern.Vertical.TScrollbar")
         self.students_table.configure(yscrollcommand=scroll.set)
         self.students_table.grid(row=0, column=0, sticky="nsew")
@@ -376,13 +372,13 @@ class NotificationApp(tk.Frame):
         self.students_table.bind("<Double-1>", lambda _event: self.on_edit_student())
 
         buttons = tk.Frame(card, bg=CARD)
-        buttons.grid(row=3, column=0, sticky="ew", pady=(14, 0))
+        buttons.grid(row=3, column=0, sticky="ew", pady=(12, 0))
         self.button(buttons, "Edit", self.on_edit_student).pack(side="left")
         self.button(buttons, "Delete", self.on_delete_student, danger=True).pack(side="left", padx=(7, 0))
         self.button(buttons, "Save", self.on_save_students).pack(side="right")
 
     def build_details_card(self, parent):
-        card = self.card(parent)
+        card = self.card(parent, 18, 15)
         card.grid(row=0, column=1, sticky="nsew", padx=(9, 0))
         card.rowconfigure(3, weight=1)
         card.columnconfigure(0, weight=1)
@@ -402,11 +398,10 @@ class NotificationApp(tk.Frame):
         self.period_badge = tk.Label(identity, textvariable=self.academic_period, font=(FONT, 8, "bold"), fg=PRIMARY, bg=SOFT, padx=8, pady=3)
         self.period_badge.pack(anchor="w", pady=(7, 0))
 
-        separator = tk.Frame(card, bg=BORDER, height=1)
-        separator.grid(row=1, column=0, sticky="ew", pady=18)
+        tk.Frame(card, bg=BORDER, height=1).grid(row=1, column=0, sticky="ew", pady=14)
 
         title = tk.Frame(card, bg=CARD)
-        title.grid(row=2, column=0, sticky="ew", pady=(0, 10))
+        title.grid(row=2, column=0, sticky="ew", pady=(0, 8))
         tk.Label(title, text="Academic Records", font=(FONT, 11, "bold"), fg=TEXT, bg=CARD).pack(side="left")
         self.button(title, "+  Add Subject", self.on_add_grade, primary=True).pack(side="right")
 
@@ -414,15 +409,15 @@ class NotificationApp(tk.Frame):
         table_frame.grid(row=3, column=0, sticky="nsew")
         table_frame.rowconfigure(0, weight=1)
         table_frame.columnconfigure(0, weight=1)
-        self.grades_table = ttk.Treeview(table_frame, columns=("course_code", "course_title", "units", "grade"), show="headings", style="Modern.Treeview", selectmode="browse")
+        self.grades_table = ttk.Treeview(table_frame, columns=("course_code", "course_title", "units", "grade"), show="headings", style="Modern.Treeview", selectmode="browse", height=10)
         self.grades_table.heading("course_code", text="CODE")
         self.grades_table.heading("course_title", text="COURSE TITLE")
         self.grades_table.heading("units", text="UNITS")
         self.grades_table.heading("grade", text="GRADE")
-        self.grades_table.column("course_code", width=85, anchor="w")
-        self.grades_table.column("course_title", width=250, anchor="w")
-        self.grades_table.column("units", width=55, anchor="center")
-        self.grades_table.column("grade", width=65, anchor="center")
+        self.grades_table.column("course_code", width=100, minwidth=90, anchor="w", stretch=False)
+        self.grades_table.column("course_title", width=330, minwidth=220, anchor="w", stretch=True)
+        self.grades_table.column("units", width=70, minwidth=60, anchor="center", stretch=False)
+        self.grades_table.column("grade", width=75, minwidth=65, anchor="center", stretch=False)
         scroll = ttk.Scrollbar(table_frame, orient="vertical", command=self.grades_table.yview, style="Modern.Vertical.TScrollbar")
         self.grades_table.configure(yscrollcommand=scroll.set)
         self.grades_table.grid(row=0, column=0, sticky="nsew")
@@ -430,18 +425,19 @@ class NotificationApp(tk.Frame):
         self.grades_table.bind("<Double-1>", lambda _event: self.on_edit_grade())
 
         bottom = tk.Frame(card, bg=CARD)
-        bottom.grid(row=4, column=0, sticky="ew", pady=(12, 0))
+        bottom.grid(row=4, column=0, sticky="ew", pady=(10, 0))
         self.button(bottom, "Edit", self.on_edit_grade).pack(side="left")
         self.button(bottom, "Delete", self.on_delete_grade, danger=True).pack(side="left", padx=(7, 0))
         self.button(bottom, "Save Grades", self.on_save_grades).pack(side="right")
 
     def build_notification_card(self, parent):
-        card = self.card(parent, 18, 15)
-        card.grid(row=3, column=0, sticky="ew", pady=(18, 0))
+        card = self.card(parent, 18, 12)
+        card.grid(row=3, column=0, sticky="ew", pady=(14, 0))
         card.columnconfigure(1, weight=1)
         self.notification_card = card
+
         heading = tk.Frame(card, bg=CARD)
-        heading.grid(row=0, column=0, columnspan=4, sticky="ew", pady=(0, 12))
+        heading.grid(row=0, column=0, columnspan=4, sticky="ew", pady=(0, 8))
         tk.Label(heading, text="Send Notification", font=(FONT, 11, "bold"), fg=TEXT, bg=CARD).pack(side="left")
         tk.Label(heading, text="Notify the selected student through your chosen channel", font=(FONT, 8), fg=MUTED, bg=CARD).pack(side="left", padx=(12, 0))
 
@@ -458,18 +454,18 @@ class NotificationApp(tk.Frame):
         self.channel_box.bind("<<ComboboxSelected>>", self.on_channel_changed)
 
         self.recipient_label = tk.Label(card, text="RECIPIENT", font=(FONT, 8, "bold"), fg=MUTED, bg=CARD)
-        self.recipient_label.grid(row=2, column=0, sticky="w", pady=(12, 0), padx=(0, 8))
+        self.recipient_label.grid(row=2, column=0, sticky="w", pady=(8, 0), padx=(0, 8))
         self.recipient = tk.StringVar()
         self.recipient_entry = tk.Entry(card, textvariable=self.recipient, font=(FONT, 9), bg="#F7F8FB", fg=TEXT, insertbackground=TEXT, relief="flat", bd=0, highlightthickness=1, highlightbackground=BORDER, highlightcolor=PRIMARY)
-        self.recipient_entry.grid(row=2, column=1, columnspan=3, sticky="ew", ipady=7, pady=(12, 0))
+        self.recipient_entry.grid(row=2, column=1, columnspan=3, sticky="ew", ipady=6, pady=(8, 0))
 
         self.message_label = tk.Label(card, text="MESSAGE", font=(FONT, 8, "bold"), fg=MUTED, bg=CARD)
-        self.message_label.grid(row=3, column=0, sticky="nw", pady=(12, 0), padx=(0, 8))
-        self.message_text = tk.Text(card, height=3, font=(FONT, 9), wrap="word", bg="#F7F8FB", fg=TEXT, insertbackground=TEXT, relief="flat", bd=0, highlightthickness=1, highlightbackground=BORDER, highlightcolor=PRIMARY)
-        self.message_text.grid(row=3, column=1, columnspan=3, sticky="ew", pady=(12, 0))
+        self.message_label.grid(row=3, column=0, sticky="nw", pady=(8, 0), padx=(0, 8))
+        self.message_text = tk.Text(card, height=2, font=(FONT, 9), wrap="word", bg="#F7F8FB", fg=TEXT, insertbackground=TEXT, relief="flat", bd=0, highlightthickness=1, highlightbackground=BORDER, highlightcolor=PRIMARY)
+        self.message_text.grid(row=3, column=1, columnspan=3, sticky="ew", pady=(8, 0))
 
         footer = tk.Frame(card, bg=CARD)
-        footer.grid(row=4, column=0, columnspan=4, sticky="ew", pady=(12, 0))
+        footer.grid(row=4, column=0, columnspan=4, sticky="ew", pady=(8, 0))
         self.recipient_hint = tk.Label(footer, text="", font=(FONT, 8), fg=MUTED, bg=CARD)
         self.recipient_hint.pack(side="left")
         self.button(footer, "Send Notification  →", self.on_send, primary=True).pack(side="right")
@@ -534,12 +530,12 @@ class NotificationApp(tk.Frame):
         name = student.get("name", "")
         self.student_name.set(name or "Unnamed student")
         self.program_year.set(student.get("program_year", "") or "Program / Year not specified")
-        period = student.get("academic_period", "") or "Academic period not specified"
-        self.academic_period.set(period)
+        self.academic_period.set(student.get("academic_period", "") or "Academic period not specified")
         initials = "".join(part[0] for part in name.split()[:2]).upper() or "--"
         self.avatar.configure(text=initials)
         self.refresh_grade_table()
-        self.write(f"Selected student: {name}")
+        if self.content_mode.get() == "Grades":
+            self.on_content_mode_changed()
 
     def on_add_student(self):
         dialog = StudentDialog(self)
@@ -548,16 +544,16 @@ class NotificationApp(tk.Frame):
             return
         name, program, period = dialog.result
         self.students.append({"name": name, "program_year": program, "academic_period": period, "grades": []})
-        self.on_save_students(silent=True)
+        if not self.on_save_students(silent=True):
+            self.students.pop()
+            return
         self.student_search.set("")
-        self.refresh_student_rows()
         self.load_students_into_table(len(self.students) - 1)
-        self.write(f"Added student: {name}")
 
     def on_edit_student(self):
         index = self.get_selected_student_index()
         if index is None:
-            messagebox.showwarning("Select a student", "Select a student to edit first.")
+            messagebox.showwarning("Select a student", "Select a student to edit first.", parent=self)
             return
         student = self.students[index]
         dialog = StudentDialog(self, (student.get("name", ""), student.get("program_year", ""), student.get("academic_period", "")))
@@ -571,12 +567,11 @@ class NotificationApp(tk.Frame):
         self.on_save_students(silent=True)
         self.student_search.set("")
         self.load_students_into_table(index)
-        self.write(f"Modified student: {name}")
 
     def on_delete_student(self):
         index = self.get_selected_student_index()
         if index is None:
-            messagebox.showwarning("Select a student", "Select a student to delete first.")
+            messagebox.showwarning("Select a student", "Select a student to delete first.", parent=self)
             return
         student = self.students[index]
         name = student.get("name", "this student")
@@ -586,17 +581,15 @@ class NotificationApp(tk.Frame):
         self.on_save_students(silent=True)
         new_index = min(index, len(self.students) - 1) if self.students else None
         self.load_students_into_table(new_index)
-        self.write(f"Deleted student: {name}")
 
     def on_save_students(self, silent=False):
         try:
             save_students(self.students)
         except OSError as exc:
-            messagebox.showerror("Save failed", str(exc))
+            messagebox.showerror("Save failed", str(exc), parent=self)
             return False
         if not silent:
             messagebox.showinfo("Students saved", "Student data has been saved to students.json.", parent=self)
-            self.write("Saved student changes to students.json.")
         return True
 
     def refresh_grade_table(self):
@@ -620,7 +613,7 @@ class NotificationApp(tk.Frame):
         try:
             save_students(self.students)
         except OSError as exc:
-            messagebox.showerror("Save failed", str(exc))
+            messagebox.showerror("Save failed", str(exc), parent=self)
             return False
         return True
 
@@ -635,7 +628,6 @@ class NotificationApp(tk.Frame):
         self.grades_table.insert("", "end", values=dialog.result)
         self.refresh_from_table()
         self.save_current_student_grades()
-        self.write(f"Added subject: {dialog.result[0]} - {dialog.result[1]}")
 
     def on_edit_grade(self):
         if self.selected_student_index is None:
@@ -654,7 +646,6 @@ class NotificationApp(tk.Frame):
         self.grades_table.item(item, values=dialog.result)
         self.refresh_from_table()
         self.save_current_student_grades()
-        self.write(f"Modified subject: {dialog.result[0]} - {dialog.result[1]}")
 
     def on_delete_grade(self):
         if self.selected_student_index is None:
@@ -671,7 +662,6 @@ class NotificationApp(tk.Frame):
         self.grades_table.delete(item)
         self.refresh_from_table()
         self.save_current_student_grades()
-        self.write(f"Deleted subject: {values[0]} - {values[1]}")
 
     def on_save_grades(self):
         if self.selected_student_index is None:
@@ -679,7 +669,6 @@ class NotificationApp(tk.Frame):
             return
         if self.save_current_student_grades():
             messagebox.showinfo("Grades saved", "The selected student's grades have been saved.", parent=self)
-            self.write("Saved selected student's grades.")
 
     def on_content_mode_changed(self, _event=None):
         if self.content_mode.get() == "Grades":
@@ -692,7 +681,6 @@ class NotificationApp(tk.Frame):
             self.message_text.configure(state="normal")
             self.message_text.delete("1.0", "end")
             self.message_label.configure(text="MESSAGE")
-            self.message_text.focus_set()
 
     def on_channel_changed(self, _event=None):
         channel = self.channel.get().lower()
@@ -700,6 +688,8 @@ class NotificationApp(tk.Frame):
             self.recipient_hint.configure(text="Enter an email address.")
         elif channel == "sms":
             self.recipient_hint.configure(text="Enter a phone number.")
+        elif channel == "push":
+            self.recipient_hint.configure(text="Enter a Firebase Cloud Messaging token.")
         else:
             self.recipient_hint.configure(text="Enter the recipient identifier for this channel.")
 
@@ -711,14 +701,11 @@ class NotificationApp(tk.Frame):
         lines = [f"Student: {student.get('name', '')}", f"Program / Year: {student.get('program_year', '')}"]
         if student.get("academic_period"):
             lines.append(f"Academic Period: {student.get('academic_period')}")
-        lines.append("")
-        lines.append("Grades:")
+        lines.extend(["", "Grades:"])
         for code, subject, units, grade in grades:
             lines.append(f"{code} - {subject}: {grade} ({units} units)")
         total_units, average = calculate_totals(grades)
-        lines.append("")
-        lines.append(f"Total Units: {total_units:g}")
-        lines.append(f"Weighted Average: {average:.2f}" if average is not None else "Weighted Average: N/A")
+        lines.extend(["", f"Total Units: {total_units:g}", f"Weighted Average: {average:.2f}" if average is not None else "Weighted Average: N/A"])
         return "\n".join(lines)
 
     def on_send(self):
@@ -738,33 +725,25 @@ class NotificationApp(tk.Frame):
                 messagebox.showwarning("Message required", "Enter a message first.", parent=self)
                 self.message_text.focus_set()
                 return
-        service = SERVICES.get(self.channel.get())
-        if service is None:
+        service_class = SERVICES.get(self.channel.get())
+        if service_class is None:
             messagebox.showerror("Channel error", "The selected notification channel is not configured.", parent=self)
             return
         try:
+            service = service_class()
             service.set_recipient(recipient)
             service.notify(message)
         except Exception as exc:
             messagebox.showerror("Notification failed", str(exc), parent=self)
-            self.write(f"Notification failed: {exc}")
             return
         messagebox.showinfo("Notification sent", f"Notification sent through {self.channel.get()}.", parent=self)
-        self.write(f"Sent {self.channel.get()} notification to {recipient}.")
-
-    def write(self, text):
-        if hasattr(self, "activity_log"):
-            self.activity_log.configure(state="normal")
-            self.activity_log.insert("end", text + "\n")
-            self.activity_log.see("end")
-            self.activity_log.configure(state="disabled")
 
 
 if __name__ == "__main__":
     root = tk.Tk()
     root.title("NDMU Notification Console")
-    root.geometry("1280x900")
-    root.minsize(1050, 760)
+    root.geometry("1400x950")
+    root.minsize(1150, 800)
     app = NotificationApp(root)
     app.pack(fill="both", expand=True)
     root.mainloop()
