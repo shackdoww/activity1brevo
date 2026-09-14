@@ -148,11 +148,11 @@ class StudentDialog(ModernDialog):
         self.name_var = tk.StringVar(value=values[0])
         self.program_var = tk.StringVar(value=values[1])
         self.period_var = tk.StringVar(value=values[2])
-        self.field(0, "Student Name", self.name_var)
+        self.name_entry = self.field(0, "Student Name", self.name_var)
         self.field(2, "Program / Year", self.program_var)
         self.field(4, "Academic Period", self.period_var)
         self.save_button.configure(command=self.validate_and_save)
-        self.after(50, lambda: self.winfo_children()[1].winfo_children()[1].focus_set())
+        self.after(50, self.name_entry.focus_set)
 
     def validate_and_save(self):
         name = self.name_var.get().strip()
@@ -211,6 +211,7 @@ class NotificationApp(tk.Frame):
         self.students = []
         self.selected_student_index = None
         self.grades = []
+        self.active_nav = None
         self.setup_styles()
         self.build_ui()
         self.load_students_into_table()
@@ -233,8 +234,7 @@ class NotificationApp(tk.Frame):
         return tk.Button(parent, text=text, command=command, font=(FONT, 9, "bold"), bg=bg, fg=fg, activebackground=active, activeforeground=fg, relief="flat", bd=0, padx=14, pady=8, cursor="hand2")
 
     def card(self, parent, padx=18, pady=16):
-        frame = tk.Frame(parent, bg=CARD, highlightbackground=BORDER, highlightthickness=1, padx=padx, pady=pady)
-        return frame
+        return tk.Frame(parent, bg=CARD, highlightbackground=BORDER, highlightthickness=1, padx=padx, pady=pady)
 
     def build_ui(self):
         self.columnconfigure(1, weight=1)
@@ -256,8 +256,8 @@ class NotificationApp(tk.Frame):
         tk.Label(sidebar, text="WORKSPACE", font=(FONT, 8, "bold"), fg=SIDEBAR_MUTED, bg=SIDEBAR, padx=22).pack(anchor="w", pady=(22, 10))
         nav = tk.Frame(sidebar, bg=SIDEBAR, padx=12)
         nav.pack(fill="x")
-        self.nav_button(nav, "▣   Students", True)
-        self.nav_button(nav, "↗   Notifications", False)
+        self.students_nav = self.nav_button(nav, "▣   Students", self.show_students, True)
+        self.notifications_nav = self.nav_button(nav, "↗   Notifications", self.show_notifications, False)
 
         sidebar_bottom = tk.Frame(sidebar, bg=SIDEBAR, padx=22, pady=22)
         sidebar_bottom.pack(side="bottom", fill="x")
@@ -267,12 +267,16 @@ class NotificationApp(tk.Frame):
         main = tk.Frame(self, bg=BG, padx=28, pady=24)
         main.grid(row=0, column=1, sticky="nsew")
         main.columnconfigure(0, weight=1)
-        main.rowconfigure(3, weight=1)
+        main.rowconfigure(2, weight=1)
+        main.rowconfigure(3, weight=0)
+        self.main = main
 
         header = tk.Frame(main, bg=BG)
         header.grid(row=0, column=0, sticky="ew", pady=(0, 22))
-        tk.Label(header, text="Students", font=(FONT, 24, "bold"), fg=TEXT, bg=BG).pack(side="left")
-        tk.Label(header, text="Manage students, academic records, and notifications", font=(FONT, 9), fg=MUTED, bg=BG).pack(side="left", padx=(14, 0), pady=(10, 0))
+        self.page_title = tk.Label(header, text="Students", font=(FONT, 24, "bold"), fg=TEXT, bg=BG)
+        self.page_title.pack(side="left")
+        self.page_subtitle = tk.Label(header, text="Manage students, academic records, and notifications", font=(FONT, 9), fg=MUTED, bg=BG)
+        self.page_subtitle.pack(side="left", padx=(14, 0), pady=(10, 0))
 
         actions = tk.Frame(header, bg=BG)
         actions.pack(side="right")
@@ -290,16 +294,45 @@ class NotificationApp(tk.Frame):
         content.grid(row=2, column=0, sticky="nsew")
         content.columnconfigure(0, weight=3)
         content.columnconfigure(1, weight=5)
+        content.rowconfigure(0, weight=1)
+        self.content = content
 
         self.build_students_card(content)
         self.build_details_card(content)
-
         self.build_notification_card(main)
 
-    def nav_button(self, parent, text, active):
-        frame = tk.Frame(parent, bg=PRIMARY if active else SIDEBAR, padx=12, pady=10)
+    def nav_button(self, parent, text, command, active):
+        frame = tk.Frame(parent, bg=PRIMARY if active else SIDEBAR, padx=12, pady=10, cursor="hand2")
         frame.pack(fill="x", pady=2)
-        tk.Label(frame, text=text, font=(FONT, 9, "bold" if active else "normal"), fg="white" if active else SIDEBAR_TEXT, bg=PRIMARY if active else SIDEBAR).pack(anchor="w")
+        label = tk.Label(frame, text=text, font=(FONT, 9, "bold" if active else "normal"), fg="white" if active else SIDEBAR_TEXT, bg=PRIMARY if active else SIDEBAR, cursor="hand2")
+        label.pack(anchor="w")
+        frame.bind("<Button-1>", lambda _event: command())
+        label.bind("<Button-1>", lambda _event: command())
+        return frame
+
+    def set_active_nav(self, active):
+        pairs = [(self.students_nav, active == "students"), (self.notifications_nav, active == "notifications")]
+        for frame, selected in pairs:
+            frame.configure(bg=PRIMARY if selected else SIDEBAR)
+            label = frame.winfo_children()[0]
+            label.configure(bg=PRIMARY if selected else SIDEBAR, fg="white" if selected else SIDEBAR_TEXT, font=(FONT, 9, "bold" if selected else "normal"))
+
+    def show_students(self):
+        self.set_active_nav("students")
+        self.page_title.configure(text="Students")
+        self.page_subtitle.configure(text="Manage students, academic records, and notifications")
+        self.student_search.focus_set()
+
+    def show_notifications(self):
+        self.set_active_nav("notifications")
+        self.page_title.configure(text="Notifications")
+        self.page_subtitle.configure(text="Send grades or custom messages through your selected channel")
+        self.master.after_idle(self.focus_notification)
+
+    def focus_notification(self):
+        self.recipient_entry.focus_set()
+        self.notification_card.configure(highlightbackground=PRIMARY, highlightthickness=2)
+        self.master.after(500, lambda: self.notification_card.configure(highlightbackground=BORDER, highlightthickness=1))
 
     def stat_card(self, parent, column, label, value, subtitle, attr):
         frame = self.card(parent, 16, 13)
@@ -406,16 +439,17 @@ class NotificationApp(tk.Frame):
         card = self.card(parent, 18, 15)
         card.grid(row=3, column=0, sticky="ew", pady=(18, 0))
         card.columnconfigure(1, weight=1)
+        self.notification_card = card
         heading = tk.Frame(card, bg=CARD)
         heading.grid(row=0, column=0, columnspan=4, sticky="ew", pady=(0, 12))
         tk.Label(heading, text="Send Notification", font=(FONT, 11, "bold"), fg=TEXT, bg=CARD).pack(side="left")
         tk.Label(heading, text="Notify the selected student through your chosen channel", font=(FONT, 8), fg=MUTED, bg=CARD).pack(side="left", padx=(12, 0))
 
-        tk.Label(card, text="CONTENT", font=(FONT, 8, "bold"), fg=MUTED, bg=CARD).grid(row=1, column=0, sticky="w", padx=(0, 8))
+        tk.Label(card, text="CONTENT", font=(FONT, 8, "bold"), fg=MUTED, bg=CARD).grid(row=1, column=0, sticky="w")
         self.content_mode = tk.StringVar(value="Grades")
-        mode = ttk.Combobox(card, textvariable=self.content_mode, values=("Grades", "Message Only"), state="readonly", width=16, style="Modern.TCombobox")
-        mode.grid(row=1, column=1, sticky="w")
-        mode.bind("<<ComboboxSelected>>", self.on_content_mode_changed)
+        self.content_box = ttk.Combobox(card, textvariable=self.content_mode, values=["Grades", "Message Only"], state="readonly", width=15, style="Modern.TCombobox")
+        self.content_box.grid(row=1, column=1, sticky="w")
+        self.content_box.bind("<<ComboboxSelected>>", self.on_content_mode_changed)
 
         tk.Label(card, text="CHANNEL", font=(FONT, 8, "bold"), fg=MUTED, bg=CARD).grid(row=1, column=2, sticky="e", padx=(18, 8))
         self.channel = tk.StringVar(value=list(SERVICES)[0])
@@ -426,7 +460,8 @@ class NotificationApp(tk.Frame):
         self.recipient_label = tk.Label(card, text="RECIPIENT", font=(FONT, 8, "bold"), fg=MUTED, bg=CARD)
         self.recipient_label.grid(row=2, column=0, sticky="w", pady=(12, 0), padx=(0, 8))
         self.recipient = tk.StringVar()
-        tk.Entry(card, textvariable=self.recipient, font=(FONT, 9), bg="#F7F8FB", fg=TEXT, insertbackground=TEXT, relief="flat", bd=0, highlightthickness=1, highlightbackground=BORDER, highlightcolor=PRIMARY).grid(row=2, column=1, columnspan=3, sticky="ew", ipady=7, pady=(12, 0))
+        self.recipient_entry = tk.Entry(card, textvariable=self.recipient, font=(FONT, 9), bg="#F7F8FB", fg=TEXT, insertbackground=TEXT, relief="flat", bd=0, highlightthickness=1, highlightbackground=BORDER, highlightcolor=PRIMARY)
+        self.recipient_entry.grid(row=2, column=1, columnspan=3, sticky="ew", ipady=7, pady=(12, 0))
 
         self.message_label = tk.Label(card, text="MESSAGE", font=(FONT, 8, "bold"), fg=MUTED, bg=CARD)
         self.message_label.grid(row=3, column=0, sticky="nw", pady=(12, 0), padx=(0, 8))
@@ -638,99 +673,98 @@ class NotificationApp(tk.Frame):
         self.save_current_student_grades()
         self.write(f"Deleted subject: {values[0]} - {values[1]}")
 
-    def on_save_grades(self, silent=False):
+    def on_save_grades(self):
         if self.selected_student_index is None:
-            messagebox.showwarning("Select a student", "Select a student before saving grades.", parent=self)
-            return False
-        if not self.save_current_student_grades():
-            return False
-        if not silent:
-            messagebox.showinfo("Grades saved", "Grade data has been saved for the selected student.", parent=self)
-            self.write("Saved grade changes to students.json.")
-        return True
+            messagebox.showwarning("Select a student", "Select a student first.", parent=self)
+            return
+        if self.save_current_student_grades():
+            messagebox.showinfo("Grades saved", "The selected student's grades have been saved.", parent=self)
+            self.write("Saved selected student's grades.")
 
     def on_content_mode_changed(self, _event=None):
-        enabled = self.content_mode.get() == "Message Only"
-        state = "normal" if enabled else "disabled"
-        self.message_text.configure(state=state)
-        self.message_label.configure(fg=MUTED if not enabled else TEXT)
+        if self.content_mode.get() == "Grades":
+            self.message_text.configure(state="normal")
+            self.message_text.delete("1.0", "end")
+            self.message_text.insert("1.0", self.build_message())
+            self.message_text.configure(state="disabled")
+            self.message_label.configure(text="PREVIEW")
+        else:
+            self.message_text.configure(state="normal")
+            self.message_text.delete("1.0", "end")
+            self.message_label.configure(text="MESSAGE")
+            self.message_text.focus_set()
 
     def on_channel_changed(self, _event=None):
-        channel = self.channel.get()
-        if channel == "Email":
-            self.recipient_label.configure(text="RECIPIENT EMAIL")
-            self.recipient_hint.configure(text="Enter the email address where the notification should be sent.")
-        elif channel == "SMS":
-            self.recipient_label.configure(text="RECIPIENT PHONE")
-            self.recipient_hint.configure(text="Use an international number such as +639171234567.")
-        elif channel == "Push":
-            self.recipient_label.configure(text="FCM DEVICE TOKEN")
-            self.recipient_hint.configure(text="Enter the Firebase Cloud Messaging device token.")
+        channel = self.channel.get().lower()
+        if channel == "email":
+            self.recipient_hint.configure(text="Enter an email address.")
+        elif channel == "sms":
+            self.recipient_hint.configure(text="Enter a phone number.")
         else:
-            self.recipient_label.configure(text="WHATSAPP NUMBER")
-            self.recipient_hint.configure(text="Enter the recipient's phone number.")
+            self.recipient_hint.configure(text="Enter the recipient identifier for this channel.")
 
     def build_message(self):
-        if self.content_mode.get() == "Message Only":
-            message = self.message_text.get("1.0", "end").strip()
-            if not message:
-                raise ValueError("Custom message must not be empty.")
-            return message
         if self.selected_student_index is None:
-            raise ValueError("Select a student before sending grades.")
+            return "Select a student to generate their grade summary."
         student = self.students[self.selected_student_index]
         grades = [tuple(row) for row in student.get("grades", [])]
-        rows = [f"{code} - {subject}: {grade} (Units: {units})" for code, subject, units, grade in grades]
-        total_units, weighted_average = calculate_totals(grades)
-        average_text = f"{weighted_average:.2f}" if weighted_average is not None else "N/A"
-        return (
-            f"Student: {student.get('name', '')}\n"
-            f"Program / Year: {student.get('program_year', '')}\n"
-            f"Academic Period: {student.get('academic_period', '') or 'Not specified'}\n\n"
-            "Grades:\n"
-            + ("\n".join(rows) if rows else "No grade records.")
-            + f"\n\nTotal Units: {total_units:g}"
-            + f"\nWeighted Average: {average_text}"
-        )
-
-    def write(self, text):
-        if not hasattr(self, "activity_log"):
-            return
-        self.activity_log.configure(state="normal")
-        self.activity_log.insert("end", text + "\n")
-        self.activity_log.see("end")
-        self.activity_log.configure(state="disabled")
+        lines = [f"Student: {student.get('name', '')}", f"Program / Year: {student.get('program_year', '')}"]
+        if student.get("academic_period"):
+            lines.append(f"Academic Period: {student.get('academic_period')}")
+        lines.append("")
+        lines.append("Grades:")
+        for code, subject, units, grade in grades:
+            lines.append(f"{code} - {subject}: {grade} ({units} units)")
+        total_units, average = calculate_totals(grades)
+        lines.append("")
+        lines.append(f"Total Units: {total_units:g}")
+        lines.append(f"Weighted Average: {average:.2f}" if average is not None else "Weighted Average: N/A")
+        return "\n".join(lines)
 
     def on_send(self):
-        try:
+        if self.selected_student_index is None:
+            messagebox.showwarning("Select a student", "Select a student before sending a notification.", parent=self)
+            return
+        recipient = self.recipient.get().strip()
+        if not recipient:
+            messagebox.showwarning("Recipient required", "Enter a recipient first.", parent=self)
+            self.recipient_entry.focus_set()
+            return
+        if self.content_mode.get() == "Grades":
             message = self.build_message()
-            recipient = self.recipient.get().strip()
-            if not recipient:
-                raise ValueError("Recipient is required.")
-            service = SERVICES[self.channel.get()]()
+        else:
+            message = self.message_text.get("1.0", "end").strip()
+            if not message:
+                messagebox.showwarning("Message required", "Enter a message first.", parent=self)
+                self.message_text.focus_set()
+                return
+        service = SERVICES.get(self.channel.get())
+        if service is None:
+            messagebox.showerror("Channel error", "The selected notification channel is not configured.", parent=self)
+            return
+        try:
             service.set_recipient(recipient)
-            result = service.notify(message)
-            self.write(result)
-            messagebox.showinfo("Notification sent", result, parent=self)
-        except (ValueError, RuntimeError, KeyError) as exc:
-            self.write(f"Notification failed: {exc}")
+            service.notify(message)
+        except Exception as exc:
             messagebox.showerror("Notification failed", str(exc), parent=self)
+            self.write(f"Notification failed: {exc}")
+            return
+        messagebox.showinfo("Notification sent", f"Notification sent through {self.channel.get()}.", parent=self)
+        self.write(f"Sent {self.channel.get()} notification to {recipient}.")
+
+    def write(self, text):
+        if hasattr(self, "activity_log"):
+            self.activity_log.configure(state="normal")
+            self.activity_log.insert("end", text + "\n")
+            self.activity_log.see("end")
+            self.activity_log.configure(state="disabled")
 
 
-def main():
+if __name__ == "__main__":
     root = tk.Tk()
     root.title("NDMU Notification Console")
     root.geometry("1280x900")
     root.minsize(1050, 760)
-    root.configure(bg=BG)
-    try:
-        root.iconname("NDMU Notification Console")
-    except tk.TclError:
-        pass
     app = NotificationApp(root)
     app.pack(fill="both", expand=True)
     root.mainloop()
-
-
-if __name__ == "__main__":
-    main()
