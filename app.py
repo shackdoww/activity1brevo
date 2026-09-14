@@ -31,24 +31,27 @@ def parse_grades():
 
     for line in lines[1:]:
         parts = [part.strip() for part in line.split(",")]
-
         if len(parts) == 4:
             code, subject, units, grade = parts
+            grades.append((code, subject, units, grade))
         elif len(parts) == 3:
             code, subject_with_units, grade = parts
             tokens = subject_with_units.rsplit(maxsplit=1)
             if len(tokens) == 2 and tokens[1].replace(".", "", 1).isdigit():
                 subject, units = tokens
             else:
-                subject = subject_with_units
-                units = "-"
+                subject, units = subject_with_units, "-"
+            grades.append((code, subject, units, grade))
         else:
-            grades.append((line, "", "", ""))
-            continue
-
-        grades.append((code, subject, units, grade))
+            raise ValueError(f"Invalid grade entry in grades.txt: {line}")
 
     return student_info, grades
+
+
+def save_grades(student_info, grades):
+    lines = [student_info]
+    lines.extend(f"{code}, {subject}, {units}, {grade}" for code, subject, units, grade in grades)
+    GRADES_FILE.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
 def calculate_totals(grades):
@@ -86,10 +89,111 @@ def load_grades() -> str:
     )
 
 
+class GradeDialog(tk.Toplevel):
+    def __init__(self, parent, title, values=None):
+        super().__init__(parent)
+        self.result = None
+        self.title(title)
+        self.configure(bg="white")
+        self.resizable(False, False)
+        self.transient(parent)
+        self.grab_set()
+
+        values = values or ("", "", "", "")
+        self.code_var = tk.StringVar(value=values[0])
+        self.subject_var = tk.StringVar(value=values[1])
+        self.units_var = tk.StringVar(value=values[2])
+        self.grade_var = tk.StringVar(value=values[3])
+
+        fields = [
+            ("Course Code", self.code_var),
+            ("Course Title", self.subject_var),
+            ("Units", self.units_var),
+            ("Grade", self.grade_var),
+        ]
+
+        for row, (label, variable) in enumerate(fields):
+            tk.Label(
+                self,
+                text=label + ":",
+                font=("Calibri", 10, "bold"),
+                bg="white",
+            ).grid(row=row, column=0, sticky="w", padx=(14, 8), pady=6)
+            tk.Entry(
+                self,
+                textvariable=variable,
+                font=("Calibri", 10),
+                width=38,
+            ).grid(row=row, column=1, padx=(0, 14), pady=6)
+
+        button_frame = tk.Frame(self, bg="white")
+        button_frame.grid(row=4, column=0, columnspan=2, sticky="e", padx=14, pady=(5, 14))
+
+        tk.Button(
+            button_frame,
+            text="Cancel",
+            command=self.destroy,
+            relief="flat",
+            padx=12,
+            pady=4,
+        ).pack(side="right", padx=(7, 0))
+        tk.Button(
+            button_frame,
+            text="Save",
+            command=self.validate_and_save,
+            bg=NAVY,
+            fg="white",
+            activebackground=BAND,
+            activeforeground="white",
+            relief="flat",
+            padx=14,
+            pady=4,
+        ).pack(side="right")
+
+        self.bind("<Return>", lambda _event: self.validate_and_save())
+        self.bind("<Escape>", lambda _event: self.destroy())
+        self.protocol("WM_DELETE_WINDOW", self.destroy)
+
+    def validate_and_save(self):
+        code = self.code_var.get().strip()
+        subject = self.subject_var.get().strip()
+        units = self.units_var.get().strip()
+        grade = self.grade_var.get().strip()
+
+        if not code or not subject or not units or not grade:
+            messagebox.showwarning("Missing information", "Complete all four fields.", parent=self)
+            return
+
+        try:
+            unit_value = float(units)
+            grade_value = float(grade)
+        except ValueError:
+            messagebox.showwarning("Invalid value", "Units and grade must be numbers.", parent=self)
+            return
+
+        if unit_value <= 0:
+            messagebox.showwarning("Invalid units", "Units must be greater than zero.", parent=self)
+            return
+
+        if grade_value < 1.0 or grade_value > 5.0:
+            messagebox.showwarning("Invalid grade", "Grade must be between 1.00 and 5.00.", parent=self)
+            return
+
+        self.result = (
+            code,
+            subject,
+            f"{unit_value:g}",
+            f"{grade_value:.2f}",
+        )
+        self.destroy()
+
+
 class NotificationApp(tk.Frame):
     def __init__(self, master: tk.Misc) -> None:
         super().__init__(master, padx=14, pady=10, bg="white")
         self.columnconfigure(1, weight=1)
+        self.student_info = ""
+        self.grades = []
 
         tk.Label(
             self,
@@ -170,12 +274,9 @@ class NotificationApp(tk.Frame):
         )
         self.recipient_label.grid(row=2, column=0, sticky="w", padx=(0, 8), pady=(5, 0))
         self.recipient = tk.StringVar()
-        tk.Entry(
-            settings,
-            textvariable=self.recipient,
-            width=52,
-            font=("Calibri", 10),
-        ).grid(row=2, column=1, sticky="w", pady=(5, 0))
+        tk.Entry(settings, textvariable=self.recipient, width=52, font=("Calibri", 10)).grid(
+            row=2, column=1, sticky="w", pady=(5, 0)
+        )
 
         self.recipient_hint = tk.Label(
             settings,
@@ -227,18 +328,12 @@ class NotificationApp(tk.Frame):
                 ("Academic Period", self.academic_period),
             ]
         ):
-            tk.Label(
-                info_frame,
-                text=f"{label}:",
-                font=("Calibri", 8, "bold"),
-                bg="white",
-            ).grid(row=0, column=column * 2, sticky="w", padx=(0, 4))
-            tk.Label(
-                info_frame,
-                textvariable=variable,
-                font=("Calibri", 8),
-                bg="white",
-            ).grid(row=0, column=column * 2 + 1, sticky="w", padx=(0, 15))
+            tk.Label(info_frame, text=f"{label}:", font=("Calibri", 8, "bold"), bg="white").grid(
+                row=0, column=column * 2, sticky="w", padx=(0, 4)
+            )
+            tk.Label(info_frame, textvariable=variable, font=("Calibri", 8), bg="white").grid(
+                row=0, column=column * 2 + 1, sticky="w", padx=(0, 15)
+            )
 
         self.grades_section = tk.Frame(self, bg="white")
         self.grades_section.grid(row=6, column=0, columnspan=3, sticky="ew", pady=(7, 0))
@@ -270,18 +365,83 @@ class NotificationApp(tk.Frame):
         self.grades_table.configure(yscrollcommand=scrollbar.set)
         self.grades_table.grid(row=0, column=0)
         scrollbar.grid(row=0, column=1, sticky="ns")
+        self.grades_table.bind("<Double-1>", lambda _event: self.on_edit_grade())
+
+        grade_buttons = tk.Frame(self.grades_section, bg="white")
+        grade_buttons.grid(row=2, column=1, sticky="w", pady=(5, 0))
+
+        tk.Button(
+            grade_buttons,
+            text="Add Subject",
+            command=self.on_add_grade,
+            font=("Calibri", 9, "bold"),
+            bg=NAVY,
+            fg="white",
+            activebackground=BAND,
+            activeforeground="white",
+            relief="flat",
+            padx=10,
+            pady=3,
+        ).pack(side="left")
+        tk.Button(
+            grade_buttons,
+            text="Edit Selected",
+            command=self.on_edit_grade,
+            font=("Calibri", 9),
+            relief="flat",
+            padx=10,
+            pady=3,
+        ).pack(side="left", padx=(6, 0))
+        tk.Button(
+            grade_buttons,
+            text="Delete Selected",
+            command=self.on_delete_grade,
+            font=("Calibri", 9),
+            relief="flat",
+            padx=10,
+            pady=3,
+        ).pack(side="left", padx=(6, 0))
+        tk.Button(
+            grade_buttons,
+            text="Save Grades",
+            command=self.on_save_grades,
+            font=("Calibri", 9, "bold"),
+            relief="flat",
+            padx=10,
+            pady=3,
+        ).pack(side="left", padx=(6, 0))
 
         self.summary_frame = tk.Frame(self.grades_section, bg=CREAM, padx=8, pady=4)
-        self.summary_frame.grid(row=1, column=1, sticky="ew", pady=(4, 0))
-        self.total_units_label = tk.Label(self.summary_frame, text="Total Units: --", font=("Calibri", 9, "bold"), bg=CREAM, fg=BAND)
+        self.summary_frame.grid(row=3, column=1, sticky="ew", pady=(4, 0))
+        self.total_units_label = tk.Label(
+            self.summary_frame,
+            text="Total Units: --",
+            font=("Calibri", 9, "bold"),
+            bg=CREAM,
+            fg=BAND,
+        )
         self.total_units_label.pack(side="left", padx=(0, 25))
-        self.weighted_average_label = tk.Label(self.summary_frame, text="Weighted Average: --", font=("Calibri", 9, "bold"), bg=CREAM, fg=BAND)
+        self.weighted_average_label = tk.Label(
+            self.summary_frame,
+            text="Weighted Average: --",
+            font=("Calibri", 9, "bold"),
+            bg=CREAM,
+            fg=BAND,
+        )
         self.weighted_average_label.pack(side="left")
 
         button_frame = tk.Frame(self, bg="white")
         button_frame.grid(row=7, column=0, columnspan=3, sticky="ew", pady=7)
 
-        tk.Button(button_frame, text="Reload Grades", command=self.on_reload, font=("Calibri", 9), relief="flat", padx=9, pady=3).pack(side="left")
+        tk.Button(
+            button_frame,
+            text="Reload Grades",
+            command=self.on_reload,
+            font=("Calibri", 9),
+            relief="flat",
+            padx=9,
+            pady=3,
+        ).pack(side="left")
         tk.Button(
             button_frame,
             text="Send Notification",
@@ -296,13 +456,46 @@ class NotificationApp(tk.Frame):
             pady=3,
             cursor="hand2",
         ).pack(side="right")
-        tk.Button(button_frame, text="Clear Log", command=self.on_clear, font=("Calibri", 9), relief="flat", padx=9, pady=3).pack(side="right", padx=(0, 8))
+        tk.Button(
+            button_frame,
+            text="Clear Log",
+            command=self.on_clear,
+            font=("Calibri", 9),
+            relief="flat",
+            padx=9,
+            pady=3,
+        ).pack(side="right", padx=(0, 8))
 
-        tk.Label(self, text="Delivery Log", font=("Calibri", 10, "bold"), fg=BAND, bg="white").grid(row=8, column=0, columnspan=3, sticky="w")
-        self.log = tk.Text(self, height=5, width=76, font=("Courier New", 8), bg=INK, fg=MINT, relief="solid", borderwidth=1, padx=6, pady=4, state="disabled")
+        tk.Label(self, text="Delivery Log", font=("Calibri", 10, "bold"), fg=BAND, bg="white").grid(
+            row=8, column=0, columnspan=3, sticky="w"
+        )
+        self.log = tk.Text(
+            self,
+            height=5,
+            width=76,
+            font=("Courier New", 8),
+            bg=INK,
+            fg=MINT,
+            relief="solid",
+            borderwidth=1,
+            padx=6,
+            pady=4,
+            state="disabled",
+        )
         self.log.grid(row=9, column=0, columnspan=3, sticky="w", pady=(3, 6))
 
-        self.proof = tk.Label(self, text="", font=("Calibri", 8), bg=CREAM, fg="#333333", justify="left", anchor="w", padx=7, pady=5, width=80)
+        self.proof = tk.Label(
+            self,
+            text="",
+            font=("Calibri", 8),
+            bg=CREAM,
+            fg="#333333",
+            justify="left",
+            anchor="w",
+            padx=7,
+            pady=5,
+            width=80,
+        )
         self.proof.grid(row=10, column=0, columnspan=3, sticky="w")
 
         try:
@@ -326,24 +519,93 @@ class NotificationApp(tk.Frame):
         self.recipient_hint.configure(text=hint)
 
     def populate_grades_table(self) -> None:
-        student_info, grades = parse_grades()
+        self.student_info, self.grades = parse_grades()
+
         for item in self.grades_table.get_children():
             self.grades_table.delete(item)
 
-        name = student_info
+        name = self.student_info
         program_year = "Not specified"
-        if "," in student_info:
-            name, program_year = [part.strip() for part in student_info.split(",", 1)]
+        if "," in self.student_info:
+            name, program_year = [part.strip() for part in self.student_info.split(",", 1)]
 
-        for code, subject, units, grade in grades:
+        for code, subject, units, grade in self.grades:
             self.grades_table.insert("", "end", values=(code, subject, units, grade))
 
-        total_units, weighted_average = calculate_totals(grades)
+        total_units, weighted_average = calculate_totals(self.grades)
         average_text = f"{weighted_average:.2f}" if weighted_average is not None else "N/A"
         self.student_name.set(name)
         self.program_year.set(program_year)
         self.total_units_label.configure(text=f"Total Units: {total_units:g}")
         self.weighted_average_label.configure(text=f"Weighted Average: {average_text}")
+
+    def refresh_from_table(self):
+        self.grades = [self.grades_table.item(item, "values") for item in self.grades_table.get_children()]
+        self.grades = [tuple(row) for row in self.grades]
+        total_units, weighted_average = calculate_totals(self.grades)
+        average_text = f"{weighted_average:.2f}" if weighted_average is not None else "N/A"
+        self.total_units_label.configure(text=f"Total Units: {total_units:g}")
+        self.weighted_average_label.configure(text=f"Weighted Average: {average_text}")
+
+    def on_add_grade(self):
+        dialog = GradeDialog(self, "Add Subject / Grade")
+        self.wait_window(dialog)
+        if dialog.result is None:
+            return
+
+        self.grades_table.insert("", "end", values=dialog.result)
+        self.refresh_from_table()
+        self.write(f"Added subject: {dialog.result[0]} - {dialog.result[1]}")
+        self.on_save_grades(silent=True)
+
+    def on_edit_grade(self):
+        selection = self.grades_table.selection()
+        if not selection:
+            messagebox.showwarning("Select a subject", "Select a subject to edit first.")
+            return
+
+        item = selection[0]
+        values = self.grades_table.item(item, "values")
+        dialog = GradeDialog(self, "Edit Subject / Grade", values)
+        self.wait_window(dialog)
+        if dialog.result is None:
+            return
+
+        self.grades_table.item(item, values=dialog.result)
+        self.refresh_from_table()
+        self.write(f"Modified subject: {dialog.result[0]} - {dialog.result[1]}")
+        self.on_save_grades(silent=True)
+
+    def on_delete_grade(self):
+        selection = self.grades_table.selection()
+        if not selection:
+            messagebox.showwarning("Select a subject", "Select a subject to delete first.")
+            return
+
+        values = self.grades_table.item(selection[0], "values")
+        if not messagebox.askyesno(
+            "Delete Subject",
+            f"Delete {values[0]} - {values[1]}?",
+        ):
+            return
+
+        self.grades_table.delete(selection[0])
+        self.refresh_from_table()
+        self.write(f"Deleted subject: {values[0]} - {values[1]}")
+        self.on_save_grades(silent=True)
+
+    def on_save_grades(self, silent=False):
+        try:
+            self.refresh_from_table()
+            save_grades(self.student_info, self.grades)
+        except OSError as exc:
+            messagebox.showerror("Save failed", str(exc))
+            return False
+
+        if not silent:
+            messagebox.showinfo("Grades saved", "Subject and grade data has been saved to grades.txt.")
+            self.write("Saved grade changes to grades.txt.")
+        return True
 
     def on_content_mode_changed(self) -> None:
         is_message_only = self.content_mode.get() == "Message Only"
@@ -427,7 +689,7 @@ def main() -> None:
     root.title("CSPC 103 - Factory Method Notification Console")
     root.configure(bg="white")
     root.resizable(False, False)
-    root.geometry("700x700")
+    root.geometry("700x760")
     NotificationApp(root).pack(fill="both", expand=True)
     root.mainloop()
 
