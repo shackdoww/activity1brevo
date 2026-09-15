@@ -212,11 +212,14 @@ class NotificationApp(tk.Frame):
         self.students = []
         self.selected_student_index = None
         self.grades = []
+        self.delivery_counts = {channel: 0 for channel in SERVICES}
         self.setup_styles()
         self.build_ui()
         self.load_students_into_table()
         self.on_content_mode_changed()
         self.on_channel_changed()
+        self.update_send_state()
+        self.update_delivery_status()
 
     def setup_styles(self):
         style = ttk.Style()
@@ -267,7 +270,7 @@ class NotificationApp(tk.Frame):
         main.grid(row=0, column=1, sticky="nsew")
         main.columnconfigure(0, weight=1)
         main.rowconfigure(2, weight=1)
-        main.rowconfigure(3, weight=0, minsize=190)
+        main.rowconfigure(3, weight=0, minsize=290)
         self.main = main
 
         header = tk.Frame(main, bg=BG)
@@ -458,17 +461,70 @@ class NotificationApp(tk.Frame):
         self.recipient = tk.StringVar()
         self.recipient_entry = tk.Entry(card, textvariable=self.recipient, font=(FONT, 9), bg="#F7F8FB", fg=TEXT, insertbackground=TEXT, relief="flat", bd=0, highlightthickness=1, highlightbackground=BORDER, highlightcolor=PRIMARY)
         self.recipient_entry.grid(row=2, column=1, columnspan=3, sticky="ew", ipady=6, pady=(8, 0))
+        self.recipient.trace_add("write", lambda *_args: self.update_send_state())
 
         self.message_label = tk.Label(card, text="MESSAGE", font=(FONT, 8, "bold"), fg=MUTED, bg=CARD)
         self.message_label.grid(row=3, column=0, sticky="nw", pady=(8, 0), padx=(0, 8))
         self.message_text = tk.Text(card, height=2, font=(FONT, 9), wrap="word", bg="#F7F8FB", fg=TEXT, insertbackground=TEXT, relief="flat", bd=0, highlightthickness=1, highlightbackground=BORDER, highlightcolor=PRIMARY)
         self.message_text.grid(row=3, column=1, columnspan=3, sticky="ew", pady=(8, 0))
+        self.message_text.bind("<KeyRelease>", lambda _event: self.update_send_state())
+
+        tk.Label(card, text="DELIVERY LOG", font=(FONT, 8, "bold"), fg=MUTED, bg=CARD).grid(row=4, column=0, sticky="nw", pady=(8, 0), padx=(0, 8))
+        self.delivery_log = tk.Text(card, height=3, font=(FONT, 8), wrap="word", bg="#182033", fg="#E8ECF5", insertbackground="#E8ECF5", relief="flat", bd=0, state="disabled")
+        self.delivery_log.grid(row=4, column=1, columnspan=3, sticky="ew", pady=(8, 0))
 
         footer = tk.Frame(card, bg=CARD)
-        footer.grid(row=4, column=0, columnspan=4, sticky="ew", pady=(8, 0))
-        self.recipient_hint = tk.Label(footer, text="", font=(FONT, 8), fg=MUTED, bg=CARD)
-        self.recipient_hint.pack(side="left")
-        self.button(footer, "Send Notification  →", self.on_send, primary=True).pack(side="right")
+        footer.grid(row=5, column=0, columnspan=4, sticky="ew", pady=(8, 0))
+        self.delivery_status = tk.StringVar(value="")
+        tk.Label(footer, textvariable=self.delivery_status, font=(FONT, 8, "bold"), fg=MUTED, bg=CARD).pack(side="left")
+        self.broadcast_button = self.button(footer, "Broadcast to All", self.on_broadcast)
+        self.broadcast_button.pack(side="right", padx=(8, 0))
+        self.send_button = self.button(footer, "Send Notification  →", self.on_send, primary=True)
+        self.send_button.pack(side="right")
+
+    def update_delivery_status(self):
+        self.delivery_status.set(" | ".join(f"{channel}: {self.delivery_counts.get(channel, 0)}" for channel in SERVICES))
+
+    def append_delivery_log(self, channel_label, result, error=False):
+        self.delivery_log.configure(state="normal")
+        prefix = "ERROR" if error else channel_label
+        line = f"[{prefix}] {result}"
+        self.delivery_log.insert("end", line + "\n")
+        self.delivery_log.see("end")
+        self.delivery_log.configure(state="disabled")
+
+    def get_message_for_sending(self):
+        if self.content_mode.get() == "Grades":
+            return self.build_message()
+        return self.message_text.get("1.0", "end").strip()
+
+    def update_send_state(self):
+        if not hasattr(self, "send_button"):
+            return
+        message = self.get_message_for_sending() if hasattr(self, "content_mode") else ""
+        recipient_ready = bool(self.recipient.get().strip()) if hasattr(self, "recipient") else False
+        enabled = bool(message.strip()) and recipient_ready and self.selected_student_index is not None
+        self.send_button.configure(state="normal" if enabled else "disabled")
+        self.broadcast_button.configure(state="normal" if enabled else "disabled")
+
+    def broadcast_channels(self, message, recipient):
+        successes = []
+        failures = []
+        for label, service_class in SERVICES.items():
+            service = service_class()
+            service.set_recipient(recipient)
+            try:
+                channel_label = service.create_notification().channel_name()
+                result = service.notify(message)
+            except Exception as exc:
+                failures.append(f"{label}: {exc}")
+                self.append_delivery_log(label, str(exc), error=True)
+                continue
+            self.delivery_counts[label] = self.delivery_counts.get(label, 0) + 1
+            self.append_delivery_log(channel_label, result)
+            successes.append(label)
+        self.update_delivery_status()
+        return successes, failures
 
     def refresh_student_rows(self):
         search = self.student_search.get().strip().lower()
@@ -507,6 +563,7 @@ class NotificationApp(tk.Frame):
             self.selected_student_index = None
             self.grades = []
             self.refresh_grade_table()
+        self.update_send_state()
 
     def get_selected_student_index(self):
         selection = self.students_table.selection()
@@ -536,6 +593,7 @@ class NotificationApp(tk.Frame):
         self.refresh_grade_table()
         if self.content_mode.get() == "Grades":
             self.on_content_mode_changed()
+        self.update_send_state()
 
     def on_add_student(self):
         dialog = StudentDialog(self)
@@ -628,6 +686,8 @@ class NotificationApp(tk.Frame):
         self.grades_table.insert("", "end", values=dialog.result)
         self.refresh_from_table()
         self.save_current_student_grades()
+        self.on_content_mode_changed()
+        self.update_send_state()
 
     def on_edit_grade(self):
         if self.selected_student_index is None:
@@ -646,6 +706,8 @@ class NotificationApp(tk.Frame):
         self.grades_table.item(item, values=dialog.result)
         self.refresh_from_table()
         self.save_current_student_grades()
+        self.on_content_mode_changed()
+        self.update_send_state()
 
     def on_delete_grade(self):
         if self.selected_student_index is None:
@@ -662,6 +724,8 @@ class NotificationApp(tk.Frame):
         self.grades_table.delete(item)
         self.refresh_from_table()
         self.save_current_student_grades()
+        self.on_content_mode_changed()
+        self.update_send_state()
 
     def on_save_grades(self):
         if self.selected_student_index is None:
@@ -681,6 +745,7 @@ class NotificationApp(tk.Frame):
             self.message_text.configure(state="normal")
             self.message_text.delete("1.0", "end")
             self.message_label.configure(text="MESSAGE")
+        self.update_send_state()
 
     def on_channel_changed(self, _event=None):
         channel = self.channel.get().lower()
@@ -692,6 +757,7 @@ class NotificationApp(tk.Frame):
             self.recipient_hint.configure(text="Enter a Firebase Cloud Messaging token.")
         else:
             self.recipient_hint.configure(text="Enter the recipient identifier for this channel.")
+        self.update_send_state()
 
     def build_message(self):
         if self.selected_student_index is None:
@@ -717,26 +783,46 @@ class NotificationApp(tk.Frame):
             messagebox.showwarning("Recipient required", "Enter a recipient first.", parent=self)
             self.recipient_entry.focus_set()
             return
-        if self.content_mode.get() == "Grades":
-            message = self.build_message()
-        else:
-            message = self.message_text.get("1.0", "end").strip()
-            if not message:
-                messagebox.showwarning("Message required", "Enter a message first.", parent=self)
-                self.message_text.focus_set()
-                return
+        message = self.get_message_for_sending()
+        if not message:
+            messagebox.showwarning("Message required", "Enter a message first.", parent=self)
+            self.message_text.focus_set()
+            return
         service_class = SERVICES.get(self.channel.get())
         if service_class is None:
             messagebox.showerror("Channel error", "The selected notification channel is not configured.", parent=self)
             return
+        service = service_class()
+        service.set_recipient(recipient)
         try:
-            service = service_class()
-            service.set_recipient(recipient)
-            service.notify(message)
+            channel_label = service.create_notification().channel_name()
+            result = service.notify(message)
         except Exception as exc:
+            self.append_delivery_log(self.channel.get(), str(exc), error=True)
             messagebox.showerror("Notification failed", str(exc), parent=self)
             return
+        self.delivery_counts[self.channel.get()] = self.delivery_counts.get(self.channel.get(), 0) + 1
+        self.append_delivery_log(channel_label, result)
+        self.update_delivery_status()
         messagebox.showinfo("Notification sent", f"Notification sent through {self.channel.get()}.", parent=self)
+
+    def on_broadcast(self):
+        if self.selected_student_index is None:
+            messagebox.showwarning("Select a student", "Select a student before broadcasting.", parent=self)
+            return
+        recipient = self.recipient.get().strip()
+        message = self.get_message_for_sending()
+        if not recipient or not message:
+            messagebox.showwarning("Missing information", "Enter a recipient and message before broadcasting.", parent=self)
+            return
+        if not messagebox.askyesno("Broadcast Notification", "Send this message through every registered notification channel?", parent=self):
+            return
+        successes, failures = self.broadcast_channels(message, recipient)
+        if failures:
+            details = "\n".join(failures)
+            messagebox.showwarning("Broadcast completed with errors", f"Successful: {', '.join(successes) if successes else 'None'}\n\nFailed:\n{details}", parent=self)
+        else:
+            messagebox.showinfo("Broadcast complete", f"Message sent through: {', '.join(successes)}", parent=self)
 
 
 if __name__ == "__main__":
