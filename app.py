@@ -475,8 +475,12 @@ class NotificationApp(tk.Frame):
 
         footer = tk.Frame(card, bg=CARD)
         footer.grid(row=5, column=0, columnspan=4, sticky="ew", pady=(8, 0))
+        left_footer = tk.Frame(footer, bg=CARD)
+        left_footer.pack(side="left", fill="x", expand=True)
+        self.recipient_hint = tk.Label(left_footer, text="", font=(FONT, 8), fg=MUTED, bg=CARD)
+        self.recipient_hint.pack(side="left")
         self.delivery_status = tk.StringVar(value="")
-        tk.Label(footer, textvariable=self.delivery_status, font=(FONT, 8, "bold"), fg=MUTED, bg=CARD).pack(side="left")
+        tk.Label(left_footer, textvariable=self.delivery_status, font=(FONT, 8, "bold"), fg=MUTED, bg=CARD).pack(side="left", padx=(14, 0))
         self.broadcast_button = self.button(footer, "Broadcast to All", self.on_broadcast)
         self.broadcast_button.pack(side="right", padx=(8, 0))
         self.send_button = self.button(footer, "Send Notification  →", self.on_send, primary=True)
