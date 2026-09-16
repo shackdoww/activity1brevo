@@ -1,5 +1,4 @@
 from abc import ABC, abstractmethod
-import base64
 import html
 import json
 import os
@@ -17,14 +16,6 @@ try:
     import requests
 except ImportError:
     requests = None
-
-try:
-    import firebase_admin
-    from firebase_admin import credentials, messaging
-except ImportError:
-    firebase_admin = None
-    credentials = None
-    messaging = None
 
 BASE_DIR = Path(__file__).resolve().parent
 
@@ -163,52 +154,16 @@ class SMSNotification(Notification):
 
 
 class PushNotification(Notification):
-    def __init__(self, recipient: str):
+    def __init__(self, recipient: str = ""):
         self.recipient = recipient.strip()
 
-    @staticmethod
-    def _firebase_app():
-        if firebase_admin is None:
-            raise RuntimeError("firebase-admin is not installed. Run: pip install -r requirements.txt")
-
-        if firebase_admin._apps:
-            return firebase_admin.get_app()
-
-        credential_setting = os.getenv("GOOGLE_APPLICATION_CREDENTIALS", "").strip()
-        if credential_setting:
-            credential_path = Path(credential_setting)
-            if not credential_path.is_absolute():
-                credential_path = BASE_DIR / credential_path
-            if not credential_path.exists():
-                raise RuntimeError(f"Firebase service account file was not found: {credential_path}")
-            return firebase_admin.initialize_app(credentials.Certificate(str(credential_path)))
-
-        return firebase_admin.initialize_app()
-
     def send(self, message: str) -> str:
-        if not self.recipient:
-            raise RuntimeError("Push recipient is required. Enter a Firebase Cloud Messaging device registration token.")
-
-        self._firebase_app()
-        fcm_message = messaging.Message(
-            notification=messaging.Notification(
-                title="NDMU Notification",
-                body=message,
-            ),
-            token=self.recipient,
-        )
-
-        try:
-            message_id = messaging.send(fcm_message)
-        except Exception as exc:
-            raise RuntimeError(f"Firebase Cloud Messaging error: {exc}") from exc
-
-        line = f"PUSH -> {message} | FCM messageId: {message_id} | Recipient: {self.recipient}"
+        line = f"PUSH -> {message}"
         print(line)
         return line
 
     def channel_name(self) -> str:
-        return "Push (Firebase)"
+        return "Push"
 
 
 class WhatsAppNotification(Notification):
