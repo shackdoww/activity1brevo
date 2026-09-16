@@ -154,9 +154,6 @@ class SMSNotification(Notification):
 
 
 class PushNotification(Notification):
-    def __init__(self, recipient: str = ""):
-        self.recipient = recipient.strip()
-
     def send(self, message: str) -> str:
         line = f"PUSH -> {message}"
         print(line)
@@ -209,7 +206,7 @@ class SMSService(NotificationService):
 
 class PushService(NotificationService):
     def create_notification(self) -> Notification:
-        return PushNotification(self.recipient)
+        return PushNotification()
 
 
 class WhatsAppService(NotificationService):
