@@ -1,0 +1,81 @@
+[
+  {
+    "name": "Jezryll Philip N. Tamse",
+    "program_year": "BSCS-2",
+    "academic_period": "2026-2027",
+    "grades": [
+      [
+        "CSCC 102",
+        "Fundamentals of Programming",
+        "3",
+        "1.25"
+      ],
+      [
+        "Math 101",
+        "Trigonometric Mathematics",
+        "3",
+        "1.50"
+      ],
+      [
+        "AH 111",
+        "Purposive Communication",
+        "3",
+        "1.50"
+      ],
+      [
+        "AH 112",
+        "Arts Appreciation",
+        "3",
+        "1.50"
+      ],
+      [
+        "CSPC 102",
+        "Discrete Structures IT",
+        "3",
+        "1.25"
+      ],
+      [
+        "WKL2",
+        "PanalikSOX",
+        "3",
+        "1.50"
+      ],
+      [
+        "PathFIT2",
+        "Physical Education",
+        "3",
+        "1.00"
+      ],
+      [
+        "RE 112",
+        "Life of Jesus Christ",
+        "3",
+        "1.25"
+      ],
+      [
+        "NSTP 2",
+        "National Service Program",
+        "3",
+        "1.00"
+      ],
+      [
+        "SDS 2",
+        "Student Development",
+        "1",
+        "1.00"
+      ]
+    ]
+  },
+  {
+    "name": "Micheal Jackson",
+    "program_year": "BSCS-1",
+    "academic_period": "2026-2027",
+    "grades": []
+  },
+  {
+    "name": "Pablo Jhob",
+    "program_year": "BSCS-3",
+    "academic_period": "2026-2027",
+    "grades": []
+  }
+]
