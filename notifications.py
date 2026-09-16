@@ -44,32 +44,14 @@ class EmailNotification(Notification):
         api_key = os.getenv("BREVO_API_KEY", "").strip()
         sender_email = os.getenv("BREVO_SENDER_EMAIL", "").strip()
         sender_name = os.getenv("BREVO_SENDER_NAME", "Activity 1 Notification App").strip()
-
         if not api_key:
             raise RuntimeError("BREVO_API_KEY is not configured.")
         if not sender_email:
             raise RuntimeError("BREVO_SENDER_EMAIL is not configured.")
         if not self.recipient:
             raise RuntimeError("Email recipient is required. Enter it in the application.")
-
-        payload = {
-            "sender": {"name": sender_name, "email": sender_email},
-            "to": [{"email": self.recipient}],
-            "subject": "CSPC 103 Notification",
-            "textContent": message,
-            "htmlContent": self._grades_to_html(message),
-        }
-        request = Request(
-            "https://api.brevo.com/v3/smtp/email",
-            data=json.dumps(payload).encode("utf-8"),
-            headers={
-                "accept": "application/json",
-                "api-key": api_key,
-                "content-type": "application/json",
-            },
-            method="POST",
-        )
-
+        payload = {"sender": {"name": sender_name, "email": sender_email}, "to": [{"email": self.recipient}], "subject": "CSPC 103 Notification", "textContent": message, "htmlContent": self._grades_to_html(message)}
+        request = Request("https://api.brevo.com/v3/smtp/email", data=json.dumps(payload).encode("utf-8"), headers={"accept": "application/json", "api-key": api_key, "content-type": "application/json"}, method="POST")
         try:
             with urlopen(request, timeout=30) as response:
                 result = json.loads(response.read().decode("utf-8"))
@@ -78,7 +60,6 @@ class EmailNotification(Notification):
             raise RuntimeError(f"Brevo API error ({exc.code}): {details}") from exc
         except URLError as exc:
             raise RuntimeError(f"Could not connect to Brevo: {exc.reason}") from exc
-
         message_id = result.get("messageId", "unknown")
         line = f"EMAIL -> {message} | Brevo messageId: {message_id}"
         print(line)
@@ -95,59 +76,32 @@ class SMSNotification(Notification):
     def send(self, message: str) -> str:
         if requests is None:
             raise RuntimeError("requests is not installed. Run: pip install -r requirements.txt")
-
-        api_secret = os.getenv("UNISMS_API_SECRET", "").strip()
-        sender_id = os.getenv("UNISMS_SENDER_ID", "").strip()
-
-        if not api_secret:
-            raise RuntimeError("UNISMS_API_SECRET is not configured.")
+        api_token = os.getenv("PHILSMS_API_TOKEN", "").strip()
+        sender_id = os.getenv("PHILSMS_SENDER_ID", "").strip()
+        if not api_token:
+            raise RuntimeError("PHILSMS_API_TOKEN is not configured.")
         if not sender_id:
-            raise RuntimeError("UNISMS_SENDER_ID is not configured.")
+            raise RuntimeError("PHILSMS_SENDER_ID is not configured.")
         if not self.recipient:
             raise RuntimeError("SMS recipient is required. Enter an international phone number such as +639171234567.")
-
-        payload = {
-            "recipient": self.recipient,
-            "content": message,
-            "sender_id": sender_id,
-        }
-
+        payload = {"recipient": self.recipient, "sender_id": sender_id, "type": "plain", "message": message}
         try:
-            response = requests.post(
-                "https://unismsapi.com/api/sms",
-                json=payload,
-                auth=(api_secret, ""),
-                headers={
-                    "Accept": "application/json",
-                    "Content-Type": "application/json",
-                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/142.0 Safari/537.36",
-                },
-                timeout=30,
-            )
+            response = requests.post("https://app.philsms.com/api/v3/sms/send", json=payload, headers={"Authorization": f"Bearer {api_token}", "Accept": "application/json", "Content-Type": "application/json"}, timeout=30)
         except requests.RequestException as exc:
-            raise RuntimeError(f"Could not connect to UniSMS: {exc}") from exc
-
+            raise RuntimeError(f"Could not connect to PhilSMS: {exc}") from exc
         if not response.ok:
-            details = response.text.strip()
-            if response.status_code == 403 and "cloudflare" in details.lower():
-                raise RuntimeError(
-                    "UniSMS blocked this request with Cloudflare (403). The API credentials were not rejected. "
-                    "Try again later or contact UniSMS support if the block continues."
-                )
-            raise RuntimeError(f"UniSMS API error ({response.status_code}): {details}")
-
+            raise RuntimeError(f"PhilSMS API error ({response.status_code}): {response.text.strip()}")
         try:
             result = response.json()
         except ValueError:
             result = {"response": response.text.strip()}
-
-        reference = result.get("id", result.get("message_id", result.get("bulk_id", "accepted")))
-        line = f"SMS -> {message} | UniSMS: {reference} | Recipient: {self.recipient}"
+        reference = result.get("message_id", result.get("id", result.get("data", "accepted")))
+        line = f"SMS -> {message} | PhilSMS: {reference} | Recipient: {self.recipient}"
         print(line)
         return line
 
     def channel_name(self) -> str:
-        return "SMS (UniSMS)"
+        return "SMS (PhilSMS)"
 
 
 class PushNotification(Notification):
@@ -214,9 +168,4 @@ class WhatsAppService(NotificationService):
         return WhatsAppNotification(self.recipient)
 
 
-SERVICES: dict[str, type[NotificationService]] = {
-    "Email": EmailService,
-    "SMS": SMSService,
-    "Push": PushService,
-    "WhatsApp": WhatsAppService,
-}
+SERVICES: dict[str, type[NotificationService]] = {"Email": EmailService, "SMS": SMSService, "Push": PushService, "WhatsApp": WhatsAppService}
