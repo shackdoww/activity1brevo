@@ -2,13 +2,19 @@ import html
 import json
 import os
 from abc import ABC, abstractmethod
+from pathlib import Path
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
+
+from dotenv import load_dotenv
 
 try:
     import requests
 except ImportError:
     requests = None
+
+BASE_DIR = Path(__file__).resolve().parent
+load_dotenv(BASE_DIR / ".env")
 
 
 class Notification(ABC):
