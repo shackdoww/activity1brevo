@@ -1,23 +1,14 @@
-from abc import ABC, abstractmethod
 import html
 import json
 import os
-from pathlib import Path
+from abc import ABC, abstractmethod
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
-
-try:
-    from dotenv import load_dotenv
-    load_dotenv()
-except ImportError:
-    pass
 
 try:
     import requests
 except ImportError:
     requests = None
-
-BASE_DIR = Path(__file__).resolve().parent
 
 
 class Notification(ABC):
@@ -154,8 +145,11 @@ class SMSNotification(Notification):
 
 
 class PushNotification(Notification):
+    def __init__(self, recipient: str = ""):
+        self.recipient = recipient.strip()
+
     def send(self, message: str) -> str:
-        line = f"PUSH -> {message}"
+        line = f"PUSH -> {message} [Push]"
         print(line)
         return line
 
@@ -206,7 +200,7 @@ class SMSService(NotificationService):
 
 class PushService(NotificationService):
     def create_notification(self) -> Notification:
-        return PushNotification()
+        return PushNotification(self.recipient)
 
 
 class WhatsAppService(NotificationService):
